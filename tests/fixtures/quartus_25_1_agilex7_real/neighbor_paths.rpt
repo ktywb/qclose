@@ -1,0 +1,669 @@
+Path #1
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                                                             ; Path                                                                                                               ; Worst-Case Path After                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                   ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[287]~ENA_dff                                                               ;
+; To Node                    ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[287]~ENA_dff                                                           ; vpart|engine|vp|pes_5|writeComb|outQ|payloads_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a287~reg0 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Setup Slack                ; -1.055                                                                                                             ; -1.091                                                                                                             ; 0.958                                                                                                                  ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                                   ;
+; Clock Skew                 ; -0.139                                                                                                             ; -0.158                                                                                                             ; -0.083                                                                                                                 ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+
++---------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                          ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Property                                 ; Worst-Case Path Before ; Path                   ; Worst-Case Path After  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -1.055                 ; -1.091                 ; 0.958                  ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.269                  ; 1.348                  ; 2.282                  ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [aa] Latch Edge Time               ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [bb] Launch Edge Time              ; 0.000                  ; 0.000                  ; 0.000                  ;
+;     [b] Clock Uncertainty                ; -0.030                 ; -0.030                 ; -0.030                 ;
+;     [c] uTco                             ; 0.223                  ; 1.187                  ; 0.213                  ;
+;     [d] uTsu                             ; -0.022                 ; -0.065                 ; -0.025                 ;
+;   [B] Clock Skew [=a-b+c]                ; -0.139                 ; -0.158                 ; -0.083                 ;
+;     [a] Required Clock Delay             ; 5.126                  ; 5.111                  ; 5.103                  ;
+;     [b] Arrival Clock Delay              ; 5.966                  ; 6.014                  ; 5.992                  ;
+;     [c] Clock Effect Adjustments         ; 0.701                  ; 0.745                  ; 0.806                  ;
+;   [C] Logic Delay [=a+b]                 ; 0.719                  ; 0.941                  ; 0.720                  ;
+;     [a] Cell Delay                       ; 0.535                  ; 0.426                  ; 0.431                  ;
+;     [b] Local IC Delay                   ; 0.184                  ; 0.515                  ; 0.289                  ;
+;   [D] Fabric IC Delay                    ; 2.466                  ; 1.340                  ; 0.521                  ;
+; From Node Info                           ;                        ;                        ;                        ;
+;   Type                                   ; Hyper-Register         ; EC                     ; Hyper-Register         ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; To Node Info                             ;                        ;                        ;                        ;
+;   Type                                   ; EC                     ; Hyper-Register         ; EC                     ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; Interconnect Info                        ;                        ;                        ;                        ;
+;   Logic Levels                           ; 3                      ; 6                      ; 3                      ;
+;   Max Fanout                             ; 2138                   ; 165                    ; 4                      ;
+;   I/O Column Crossings                   ; 0                      ; 0                      ; 0                      ;
+;   Number of Wires                        ; 40                     ; 21                     ; 10                     ;
+;   Route Stage Congestion Impact          ; Low                    ; Low                    ; Low                    ;
+;   Estimated Delay Added for Hold         ; 0.000                  ; 0.000                  ; 0.000                  ;
+;   Sufficient Setup Margin for Hold       ; Yes                    ; Yes                    ; Yes                    ;
+; Bounding Box Info                        ;                        ;                        ;                        ;
+;   Source/Destination Bounding Box        ; (218, 78) - (370, 104) ; (325, 78) - (370, 100) ; (311, 94) - (325, 100) ;
+;   Source/Destination Area Covered        ; 4131                   ; 1058                   ; 105                    ;
+;   Source/Destination Relative Area       ; 1.000                  ; 1.000                  ; 1.000                  ;
+;   Cell Bounding Box                      ; (218, 78) - (370, 104) ; (325, 78) - (370, 102) ; (311, 94) - (326, 100) ;
+;   Cell Area Covered                      ; 4131                   ; 1150                   ; 112                    ;
+;   Cell Relative Area                     ; 1.000                  ; 1.087                  ; 1.067                  ;
+;   Interconnect Bounding Box              ; (218, 77) - (372, 104) ; (325, 78) - (370, 102) ; (311, 94) - (326, 100) ;
+;   Interconnect Area Covered              ; 4340                   ; 1150                   ; 112                    ;
+;   Interconnect Relative Area             ; 1.051                  ; 1.087                  ; 1.067                  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+
+Path #2
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                                                             ; Path                                                                                                               ; Worst-Case Path After                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                   ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[286]~ENA_dff                                                               ;
+; To Node                    ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[286]~ENA_dff                                                           ; vpart|engine|vp|pes_5|writeComb|outQ|payloads_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a286~reg0 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Setup Slack                ; -1.055                                                                                                             ; -1.091                                                                                                             ; 0.856                                                                                                                  ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                                   ;
+; Clock Skew                 ; -0.139                                                                                                             ; -0.158                                                                                                             ; -0.083                                                                                                                 ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+
++---------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                          ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Property                                 ; Worst-Case Path Before ; Path                   ; Worst-Case Path After  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -1.055                 ; -1.091                 ; 0.856                  ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.269                  ; 1.348                  ; 2.290                  ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [aa] Latch Edge Time               ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [bb] Launch Edge Time              ; 0.000                  ; 0.000                  ; 0.000                  ;
+;     [b] Clock Uncertainty                ; -0.030                 ; -0.030                 ; -0.030                 ;
+;     [c] uTco                             ; 0.223                  ; 1.187                  ; 0.213                  ;
+;     [d] uTsu                             ; -0.022                 ; -0.065                 ; -0.033                 ;
+;   [B] Clock Skew [=a-b+c]                ; -0.139                 ; -0.158                 ; -0.083                 ;
+;     [a] Required Clock Delay             ; 5.126                  ; 5.111                  ; 5.103                  ;
+;     [b] Arrival Clock Delay              ; 5.966                  ; 6.014                  ; 5.992                  ;
+;     [c] Clock Effect Adjustments         ; 0.701                  ; 0.745                  ; 0.806                  ;
+;   [C] Logic Delay [=a+b]                 ; 0.719                  ; 0.941                  ; 0.602                  ;
+;     [a] Cell Delay                       ; 0.535                  ; 0.426                  ; 0.353                  ;
+;     [b] Local IC Delay                   ; 0.184                  ; 0.515                  ; 0.249                  ;
+;   [D] Fabric IC Delay                    ; 2.466                  ; 1.340                  ; 0.749                  ;
+; From Node Info                           ;                        ;                        ;                        ;
+;   Type                                   ; Hyper-Register         ; EC                     ; Hyper-Register         ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; To Node Info                             ;                        ;                        ;                        ;
+;   Type                                   ; EC                     ; Hyper-Register         ; EC                     ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; Interconnect Info                        ;                        ;                        ;                        ;
+;   Logic Levels                           ; 3                      ; 6                      ; 3                      ;
+;   Max Fanout                             ; 2138                   ; 165                    ; 5                      ;
+;   I/O Column Crossings                   ; 0                      ; 0                      ; 0                      ;
+;   Number of Wires                        ; 40                     ; 21                     ; 12                     ;
+;   Route Stage Congestion Impact          ; Low                    ; Low                    ; Low                    ;
+;   Estimated Delay Added for Hold         ; 0.000                  ; 0.000                  ; 0.000                  ;
+;   Sufficient Setup Margin for Hold       ; Yes                    ; Yes                    ; Yes                    ;
+; Bounding Box Info                        ;                        ;                        ;                        ;
+;   Source/Destination Bounding Box        ; (218, 78) - (370, 104) ; (325, 78) - (370, 100) ; (311, 94) - (325, 100) ;
+;   Source/Destination Area Covered        ; 4131                   ; 1058                   ; 105                    ;
+;   Source/Destination Relative Area       ; 1.000                  ; 1.000                  ; 1.000                  ;
+;   Cell Bounding Box                      ; (218, 78) - (370, 104) ; (325, 78) - (370, 102) ; (311, 94) - (326, 100) ;
+;   Cell Area Covered                      ; 4131                   ; 1150                   ; 112                    ;
+;   Cell Relative Area                     ; 1.000                  ; 1.087                  ; 1.067                  ;
+;   Interconnect Bounding Box              ; (218, 77) - (372, 104) ; (325, 78) - (370, 102) ; (311, 94) - (327, 100) ;
+;   Interconnect Area Covered              ; 4340                   ; 1150                   ; 119                    ;
+;   Interconnect Relative Area             ; 1.051                  ; 1.087                  ; 1.133                  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+
+Path #3
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                                                             ; Path                                                                                                               ; Worst-Case Path After                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                   ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[284]~ENA_dff                                                               ;
+; To Node                    ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[284]~ENA_dff                                                           ; vpart|engine|vp|pes_5|writeComb|outQ|payloads_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a284~reg0 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Setup Slack                ; -1.055                                                                                                             ; -1.090                                                                                                             ; 0.718                                                                                                                  ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                               ; Slow vid1b 100C Model                                                                                                  ;
+; Clock Skew                 ; -0.139                                                                                                             ; -0.158                                                                                                             ; -0.077                                                                                                                 ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+
++---------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                          ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Property                                 ; Worst-Case Path Before ; Path                   ; Worst-Case Path After  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -1.055                 ; -1.090                 ; 0.718                  ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.269                  ; 1.349                  ; 2.267                  ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [aa] Latch Edge Time               ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [bb] Launch Edge Time              ; 0.000                  ; 0.000                  ; 0.000                  ;
+;     [b] Clock Uncertainty                ; -0.030                 ; -0.030                 ; -0.030                 ;
+;     [c] uTco                             ; 0.223                  ; 1.187                  ; 0.214                  ;
+;     [d] uTsu                             ; -0.022                 ; -0.066                 ; -0.011                 ;
+;   [B] Clock Skew [=a-b+c]                ; -0.139                 ; -0.158                 ; -0.077                 ;
+;     [a] Required Clock Delay             ; 5.126                  ; 5.111                  ; 4.642                  ;
+;     [b] Arrival Clock Delay              ; 5.966                  ; 6.014                  ; 5.452                  ;
+;     [c] Clock Effect Adjustments         ; 0.701                  ; 0.745                  ; 0.733                  ;
+;   [C] Logic Delay [=a+b]                 ; 0.719                  ; 0.941                  ; 0.675                  ;
+;     [a] Cell Delay                       ; 0.535                  ; 0.426                  ; 0.421                  ;
+;     [b] Local IC Delay                   ; 0.184                  ; 0.515                  ; 0.254                  ;
+;   [D] Fabric IC Delay                    ; 2.466                  ; 1.340                  ; 0.797                  ;
+; From Node Info                           ;                        ;                        ;                        ;
+;   Type                                   ; Hyper-Register         ; EC                     ; Hyper-Register         ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; To Node Info                             ;                        ;                        ;                        ;
+;   Type                                   ; EC                     ; Hyper-Register         ; EC                     ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; Interconnect Info                        ;                        ;                        ;                        ;
+;   Logic Levels                           ; 3                      ; 6                      ; 3                      ;
+;   Max Fanout                             ; 2138                   ; 165                    ; 3                      ;
+;   I/O Column Crossings                   ; 0                      ; 0                      ; 0                      ;
+;   Number of Wires                        ; 40                     ; 21                     ; 15                     ;
+;   Route Stage Congestion Impact          ; Low                    ; Low                    ; Low                    ;
+;   Estimated Delay Added for Hold         ; 0.000                  ; 0.000                  ; 0.000                  ;
+;   Sufficient Setup Margin for Hold       ; Yes                    ; Yes                    ; Yes                    ;
+; Bounding Box Info                        ;                        ;                        ;                        ;
+;   Source/Destination Bounding Box        ; (218, 78) - (370, 104) ; (325, 78) - (370, 100) ; (311, 94) - (325, 100) ;
+;   Source/Destination Area Covered        ; 4131                   ; 1058                   ; 105                    ;
+;   Source/Destination Relative Area       ; 1.000                  ; 1.000                  ; 1.000                  ;
+;   Cell Bounding Box                      ; (218, 78) - (370, 104) ; (325, 78) - (370, 102) ; (311, 94) - (325, 101) ;
+;   Cell Area Covered                      ; 4131                   ; 1150                   ; 120                    ;
+;   Cell Relative Area                     ; 1.000                  ; 1.087                  ; 1.143                  ;
+;   Interconnect Bounding Box              ; (218, 77) - (372, 104) ; (325, 78) - (370, 102) ; (311, 94) - (325, 101) ;
+;   Interconnect Area Covered              ; 4340                   ; 1150                   ; 120                    ;
+;   Interconnect Relative Area             ; 1.051                  ; 1.087                  ; 1.143                  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+
+Path #4
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                                                             ; Path                                                                                                               ; Worst-Case Path After                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                   ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[281]~ENA_dff                                                               ;
+; To Node                    ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[281]~ENA_dff                                                           ; vpart|engine|vp|pes_5|writeComb|outQ|payloads_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a281~reg0 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Setup Slack                ; -1.055                                                                                                             ; -1.090                                                                                                             ; 0.763                                                                                                                  ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                                   ;
+; Clock Skew                 ; -0.139                                                                                                             ; -0.158                                                                                                             ; -0.083                                                                                                                 ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+
++---------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                          ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Property                                 ; Worst-Case Path Before ; Path                   ; Worst-Case Path After  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -1.055                 ; -1.090                 ; 0.763                  ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.269                  ; 1.349                  ; 2.294                  ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [aa] Latch Edge Time               ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [bb] Launch Edge Time              ; 0.000                  ; 0.000                  ; 0.000                  ;
+;     [b] Clock Uncertainty                ; -0.030                 ; -0.030                 ; -0.030                 ;
+;     [c] uTco                             ; 0.223                  ; 1.187                  ; 0.214                  ;
+;     [d] uTsu                             ; -0.022                 ; -0.066                 ; -0.038                 ;
+;   [B] Clock Skew [=a-b+c]                ; -0.139                 ; -0.158                 ; -0.083                 ;
+;     [a] Required Clock Delay             ; 5.126                  ; 5.111                  ; 5.103                  ;
+;     [b] Arrival Clock Delay              ; 5.966                  ; 6.014                  ; 5.992                  ;
+;     [c] Clock Effect Adjustments         ; 0.701                  ; 0.745                  ; 0.806                  ;
+;   [C] Logic Delay [=a+b]                 ; 0.719                  ; 0.941                  ; 0.672                  ;
+;     [a] Cell Delay                       ; 0.535                  ; 0.426                  ; 0.405                  ;
+;     [b] Local IC Delay                   ; 0.184                  ; 0.515                  ; 0.267                  ;
+;   [D] Fabric IC Delay                    ; 2.466                  ; 1.340                  ; 0.776                  ;
+; From Node Info                           ;                        ;                        ;                        ;
+;   Type                                   ; Hyper-Register         ; EC                     ; Hyper-Register         ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; To Node Info                             ;                        ;                        ;                        ;
+;   Type                                   ; EC                     ; Hyper-Register         ; EC                     ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; Interconnect Info                        ;                        ;                        ;                        ;
+;   Logic Levels                           ; 3                      ; 6                      ; 3                      ;
+;   Max Fanout                             ; 2138                   ; 165                    ; 5                      ;
+;   I/O Column Crossings                   ; 0                      ; 0                      ; 0                      ;
+;   Number of Wires                        ; 40                     ; 21                     ; 15                     ;
+;   Route Stage Congestion Impact          ; Low                    ; Low                    ; Low                    ;
+;   Estimated Delay Added for Hold         ; 0.000                  ; 0.000                  ; 0.000                  ;
+;   Sufficient Setup Margin for Hold       ; Yes                    ; Yes                    ; Yes                    ;
+; Bounding Box Info                        ;                        ;                        ;                        ;
+;   Source/Destination Bounding Box        ; (218, 78) - (370, 104) ; (325, 78) - (370, 100) ; (311, 94) - (325, 100) ;
+;   Source/Destination Area Covered        ; 4131                   ; 1058                   ; 105                    ;
+;   Source/Destination Relative Area       ; 1.000                  ; 1.000                  ; 1.000                  ;
+;   Cell Bounding Box                      ; (218, 78) - (370, 104) ; (325, 78) - (370, 102) ; (311, 94) - (325, 100) ;
+;   Cell Area Covered                      ; 4131                   ; 1150                   ; 105                    ;
+;   Cell Relative Area                     ; 1.000                  ; 1.087                  ; 1.000                  ;
+;   Interconnect Bounding Box              ; (218, 77) - (372, 104) ; (325, 78) - (370, 102) ; (311, 94) - (325, 100) ;
+;   Interconnect Area Covered              ; 4340                   ; 1150                   ; 105                    ;
+;   Interconnect Relative Area             ; 1.051                  ; 1.087                  ; 1.000                  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+
+Path #5
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                                                             ; Path                                                                                                               ; Worst-Case Path After                                                                                                  ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                   ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[280]~ENA_dff                                                               ;
+; To Node                    ; vpart|engine|vp|pes_5|writeComb|metaTagMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a13~reg0 ; vpart|engine|vp|pes_5|writeComb|procDataReg[280]~ENA_dff                                                           ; vpart|engine|vp|pes_5|writeComb|outQ|payloads_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a280~reg0 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                                    ;
+; Setup Slack                ; -1.055                                                                                                             ; -1.090                                                                                                             ; 0.660                                                                                                                  ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                               ; Slow vid1 100C Model                                                                                                   ;
+; Clock Skew                 ; -0.139                                                                                                             ; -0.158                                                                                                             ; -0.083                                                                                                                 ;
++----------------------------+--------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------+
+
++---------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                          ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Property                                 ; Worst-Case Path Before ; Path                   ; Worst-Case Path After  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -1.055                 ; -1.090                 ; 0.660                  ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.269                  ; 1.349                  ; 2.282                  ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [aa] Latch Edge Time               ; 2.500                  ; 2.500                  ; 2.500                  ;
+;       [bb] Launch Edge Time              ; 0.000                  ; 0.000                  ; 0.000                  ;
+;     [b] Clock Uncertainty                ; -0.030                 ; -0.030                 ; -0.030                 ;
+;     [c] uTco                             ; 0.223                  ; 1.187                  ; 0.214                  ;
+;     [d] uTsu                             ; -0.022                 ; -0.066                 ; -0.026                 ;
+;   [B] Clock Skew [=a-b+c]                ; -0.139                 ; -0.158                 ; -0.083                 ;
+;     [a] Required Clock Delay             ; 5.126                  ; 5.111                  ; 5.103                  ;
+;     [b] Arrival Clock Delay              ; 5.966                  ; 6.014                  ; 5.992                  ;
+;     [c] Clock Effect Adjustments         ; 0.701                  ; 0.745                  ; 0.806                  ;
+;   [C] Logic Delay [=a+b]                 ; 0.719                  ; 0.941                  ; 0.734                  ;
+;     [a] Cell Delay                       ; 0.535                  ; 0.426                  ; 0.440                  ;
+;     [b] Local IC Delay                   ; 0.184                  ; 0.515                  ; 0.294                  ;
+;   [D] Fabric IC Delay                    ; 2.466                  ; 1.340                  ; 0.805                  ;
+; From Node Info                           ;                        ;                        ;                        ;
+;   Type                                   ; Hyper-Register         ; EC                     ; Hyper-Register         ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; To Node Info                             ;                        ;                        ;                        ;
+;   Type                                   ; EC                     ; Hyper-Register         ; EC                     ;
+;   Retiming Restriction                   ; --                     ; --                     ; --                     ;
+;   Power-Up "Don't Care"                  ; Yes                    ; Yes                    ; Yes                    ;
+;   Max Borrow Time                        ; 0.000                  ; 0.000                  ; 0.000                  ;
+; Interconnect Info                        ;                        ;                        ;                        ;
+;   Logic Levels                           ; 3                      ; 6                      ; 3                      ;
+;   Max Fanout                             ; 2138                   ; 165                    ; 4                      ;
+;   I/O Column Crossings                   ; 0                      ; 0                      ; 0                      ;
+;   Number of Wires                        ; 40                     ; 21                     ; 15                     ;
+;   Route Stage Congestion Impact          ; Low                    ; Low                    ; Low                    ;
+;   Estimated Delay Added for Hold         ; 0.000                  ; 0.000                  ; 0.000                  ;
+;   Sufficient Setup Margin for Hold       ; Yes                    ; Yes                    ; Yes                    ;
+; Bounding Box Info                        ;                        ;                        ;                        ;
+;   Source/Destination Bounding Box        ; (218, 78) - (370, 104) ; (325, 78) - (370, 100) ; (311, 94) - (325, 100) ;
+;   Source/Destination Area Covered        ; 4131                   ; 1058                   ; 105                    ;
+;   Source/Destination Relative Area       ; 1.000                  ; 1.000                  ; 1.000                  ;
+;   Cell Bounding Box                      ; (218, 78) - (370, 104) ; (325, 78) - (370, 102) ; (311, 92) - (325, 100) ;
+;   Cell Area Covered                      ; 4131                   ; 1150                   ; 135                    ;
+;   Cell Relative Area                     ; 1.000                  ; 1.087                  ; 1.286                  ;
+;   Interconnect Bounding Box              ; (218, 77) - (372, 104) ; (325, 78) - (370, 102) ; (311, 92) - (325, 100) ;
+;   Interconnect Area Covered              ; 4340                   ; 1150                   ; 135                    ;
+;   Interconnect Relative Area             ; 1.051                  ; 1.087                  ; 1.286                  ;
++------------------------------------------+------------------------+------------------------+------------------------+
+
+Path #6
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                        ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                           ; Path                                                                                                             ; Worst-Case Path After                                                                                            ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp_reset_released                                                   ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                 ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a399~reg0 ;
+; To Node                    ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a399~reg0 ; vpart|engine|vp|pes_8|writeComb|procDataReg[399]                                                                 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Setup Slack                ; -0.273                                                                           ; -1.090                                                                                                           ; -0.148                                                                                                           ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                             ; Slow vid1 100C Model                                                                                             ; Slow vid1 100C Model                                                                                             ;
+; Clock Skew                 ; -0.142                                                                           ; -0.132                                                                                                           ; -0.120                                                                                                           ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                                        ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Property                                 ; Worst-Case Path Before                ; Path                   ; Worst-Case Path After ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -0.273                                ; -1.090                 ; -0.148                ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.385                                 ; 2.277                  ; 1.365                 ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [aa] Latch Edge Time               ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [bb] Launch Edge Time              ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;     [b] Clock Uncertainty                ; -0.030                                ; -0.030                 ; -0.030                ;
+;     [c] uTco                             ; 0.201                                 ; 0.221                  ; 1.184                 ;
+;     [d] uTsu                             ; -0.116                                ; -0.028                 ; -0.079                ;
+;   [B] Clock Skew [=a-b+c]                ; -0.142                                ; -0.132                 ; -0.120                ;
+;     [a] Required Clock Delay             ; 5.087                                 ; 5.134                  ; 5.144                 ;
+;     [b] Arrival Clock Delay              ; 5.995                                 ; 5.966                  ; 6.022                 ;
+;     [c] Clock Effect Adjustments         ; 0.766                                 ; 0.700                  ; 0.758                 ;
+;   [C] Logic Delay [=a+b]                 ; 0.399                                 ; 0.731                  ; 0.484                 ;
+;     [a] Cell Delay                       ; 0.199                                 ; 0.531                  ; 0.288                 ;
+;     [b] Local IC Delay                   ; 0.200                                 ; 0.200                  ; 0.196                 ;
+;   [D] Fabric IC Delay                    ; 2.117                                 ; 2.504                  ; 0.909                 ;
+; From Node Info                           ;                                       ;                        ;                       ;
+;   Type                                   ; ALM Register                          ; Hyper-Register         ; EC                    ;
+;   Retiming Restriction                   ; Node uses an asynchronous clear port. ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; To Node Info                             ;                                       ;                        ;                       ;
+;   Type                                   ; Hyper-Register                        ; EC                     ; ALM Register          ;
+;   Retiming Restriction                   ; --                                    ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; Interconnect Info                        ;                                       ;                        ;                       ;
+;   Logic Levels                           ; 1                                     ; 3                      ; 3                     ;
+;   Max Fanout                             ; 352                                   ; 2182                   ; 2                     ;
+;   I/O Column Crossings                   ; 0                                     ; 0                      ; 0                     ;
+;   Number of Wires                        ; 31                                    ; 35                     ; 16                    ;
+;   Route Stage Congestion Impact          ; Low                                   ; Low                    ; Low                   ;
+;   Estimated Delay Added for Hold         ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;   Sufficient Setup Margin for Hold       ; Yes                                   ; Yes                    ; Yes                   ;
+; Bounding Box Info                        ;                                       ;                        ;                       ;
+;   Source/Destination Bounding Box        ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (323, 37) - (349, 54) ;
+;   Source/Destination Area Covered        ; 4650                                  ; 8976                   ; 486                   ;
+;   Source/Destination Relative Area       ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Cell Bounding Box                      ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (323, 37) - (349, 54) ;
+;   Cell Area Covered                      ; 4650                                  ; 8976                   ; 486                   ;
+;   Cell Relative Area                     ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Interconnect Bounding Box              ; (126, 102) - (219, 153)               ; (216, 37) - (350, 104) ; (323, 37) - (349, 55) ;
+;   Interconnect Area Covered              ; 4888                                  ; 9180                   ; 513                   ;
+;   Interconnect Relative Area             ; 1.051                                 ; 1.023                  ; 1.056                 ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+
+Path #7
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                        ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                           ; Path                                                                                                             ; Worst-Case Path After                                                                                            ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp_reset_released                                                   ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                 ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a398~reg0 ;
+; To Node                    ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a398~reg0 ; vpart|engine|vp|pes_8|writeComb|procDataReg[398]~797_BLOCK_INPUT_MUX_PASSTHROUGH_X330_Y46_N0_I59_dff             ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Setup Slack                ; -0.273                                                                           ; -1.090                                                                                                           ; 0.318                                                                                                            ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                             ; Slow vid1 100C Model                                                                                             ; Slow vid1 100C Model                                                                                             ;
+; Clock Skew                 ; -0.142                                                                           ; -0.132                                                                                                           ; -0.097                                                                                                           ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                                        ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Property                                 ; Worst-Case Path Before                ; Path                   ; Worst-Case Path After ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -0.273                                ; -1.090                 ; 0.318                 ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.385                                 ; 2.277                  ; 1.408                 ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [aa] Latch Edge Time               ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [bb] Launch Edge Time              ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;     [b] Clock Uncertainty                ; -0.030                                ; -0.030                 ; -0.030                ;
+;     [c] uTco                             ; 0.201                                 ; 0.221                  ; 1.176                 ;
+;     [d] uTsu                             ; -0.116                                ; -0.028                 ; -0.114                ;
+;   [B] Clock Skew [=a-b+c]                ; -0.142                                ; -0.132                 ; -0.097                ;
+;     [a] Required Clock Delay             ; 5.087                                 ; 5.134                  ; 5.167                 ;
+;     [b] Arrival Clock Delay              ; 5.995                                 ; 5.966                  ; 6.022                 ;
+;     [c] Clock Effect Adjustments         ; 0.766                                 ; 0.700                  ; 0.758                 ;
+;   [C] Logic Delay [=a+b]                 ; 0.399                                 ; 0.731                  ; 0.334                 ;
+;     [a] Cell Delay                       ; 0.199                                 ; 0.531                  ; 0.176                 ;
+;     [b] Local IC Delay                   ; 0.200                                 ; 0.200                  ; 0.158                 ;
+;   [D] Fabric IC Delay                    ; 2.117                                 ; 2.504                  ; 0.659                 ;
+; From Node Info                           ;                                       ;                        ;                       ;
+;   Type                                   ; ALM Register                          ; Hyper-Register         ; EC                    ;
+;   Retiming Restriction                   ; Node uses an asynchronous clear port. ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; To Node Info                             ;                                       ;                        ;                       ;
+;   Type                                   ; Hyper-Register                        ; EC                     ; Hyper-Register        ;
+;   Retiming Restriction                   ; --                                    ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; Interconnect Info                        ;                                       ;                        ;                       ;
+;   Logic Levels                           ; 1                                     ; 3                      ; 2                     ;
+;   Max Fanout                             ; 352                                   ; 2182                   ; 2                     ;
+;   I/O Column Crossings                   ; 0                                     ; 0                      ; 0                     ;
+;   Number of Wires                        ; 31                                    ; 35                     ; 11                    ;
+;   Route Stage Congestion Impact          ; Low                                   ; Low                    ; Low                   ;
+;   Estimated Delay Added for Hold         ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;   Sufficient Setup Margin for Hold       ; Yes                                   ; Yes                    ; Yes                   ;
+; Bounding Box Info                        ;                                       ;                        ;                       ;
+;   Source/Destination Bounding Box        ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (330, 37) - (349, 46) ;
+;   Source/Destination Area Covered        ; 4650                                  ; 8976                   ; 200                   ;
+;   Source/Destination Relative Area       ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Cell Bounding Box                      ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (329, 37) - (349, 46) ;
+;   Cell Area Covered                      ; 4650                                  ; 8976                   ; 210                   ;
+;   Cell Relative Area                     ; 1.000                                 ; 1.000                  ; 1.050                 ;
+;   Interconnect Bounding Box              ; (126, 102) - (219, 153)               ; (216, 37) - (350, 104) ; (329, 37) - (349, 46) ;
+;   Interconnect Area Covered              ; 4888                                  ; 9180                   ; 210                   ;
+;   Interconnect Relative Area             ; 1.051                                 ; 1.023                  ; 1.050                 ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+
+Path #8
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                        ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                           ; Path                                                                                                             ; Worst-Case Path After                                                                                            ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp_reset_released                                                   ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                 ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a397~reg0 ;
+; To Node                    ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a397~reg0 ; vpart|engine|vp|pes_8|writeComb|procDataReg[397]~795_BLOCK_INPUT_MUX_PASSTHROUGH_X328_Y49_N0_I68_dff             ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Setup Slack                ; -0.273                                                                           ; -1.090                                                                                                           ; 0.191                                                                                                            ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                             ; Slow vid1 100C Model                                                                                             ; Slow vid1 100C Model                                                                                             ;
+; Clock Skew                 ; -0.142                                                                           ; -0.132                                                                                                           ; -0.101                                                                                                           ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                                        ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Property                                 ; Worst-Case Path Before                ; Path                   ; Worst-Case Path After ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -0.273                                ; -1.090                 ; 0.191                 ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.385                                 ; 2.277                  ; 1.396                 ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [aa] Latch Edge Time               ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [bb] Launch Edge Time              ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;     [b] Clock Uncertainty                ; -0.030                                ; -0.030                 ; -0.030                ;
+;     [c] uTco                             ; 0.201                                 ; 0.221                  ; 1.187                 ;
+;     [d] uTsu                             ; -0.116                                ; -0.028                 ; -0.113                ;
+;   [B] Clock Skew [=a-b+c]                ; -0.142                                ; -0.132                 ; -0.101                ;
+;     [a] Required Clock Delay             ; 5.087                                 ; 5.134                  ; 5.163                 ;
+;     [b] Arrival Clock Delay              ; 5.995                                 ; 5.966                  ; 6.022                 ;
+;     [c] Clock Effect Adjustments         ; 0.766                                 ; 0.700                  ; 0.758                 ;
+;   [C] Logic Delay [=a+b]                 ; 0.399                                 ; 0.731                  ; 0.357                 ;
+;     [a] Cell Delay                       ; 0.199                                 ; 0.531                  ; 0.191                 ;
+;     [b] Local IC Delay                   ; 0.200                                 ; 0.200                  ; 0.166                 ;
+;   [D] Fabric IC Delay                    ; 2.117                                 ; 2.504                  ; 0.747                 ;
+; From Node Info                           ;                                       ;                        ;                       ;
+;   Type                                   ; ALM Register                          ; Hyper-Register         ; EC                    ;
+;   Retiming Restriction                   ; Node uses an asynchronous clear port. ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; To Node Info                             ;                                       ;                        ;                       ;
+;   Type                                   ; Hyper-Register                        ; EC                     ; Hyper-Register        ;
+;   Retiming Restriction                   ; --                                    ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; Interconnect Info                        ;                                       ;                        ;                       ;
+;   Logic Levels                           ; 1                                     ; 3                      ; 2                     ;
+;   Max Fanout                             ; 352                                   ; 2182                   ; 2                     ;
+;   I/O Column Crossings                   ; 0                                     ; 0                      ; 0                     ;
+;   Number of Wires                        ; 31                                    ; 35                     ; 13                    ;
+;   Route Stage Congestion Impact          ; Low                                   ; Low                    ; Low                   ;
+;   Estimated Delay Added for Hold         ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;   Sufficient Setup Margin for Hold       ; Yes                                   ; Yes                    ; Yes                   ;
+; Bounding Box Info                        ;                                       ;                        ;                       ;
+;   Source/Destination Bounding Box        ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (328, 37) - (349, 49) ;
+;   Source/Destination Area Covered        ; 4650                                  ; 8976                   ; 286                   ;
+;   Source/Destination Relative Area       ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Cell Bounding Box                      ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (328, 37) - (349, 49) ;
+;   Cell Area Covered                      ; 4650                                  ; 8976                   ; 286                   ;
+;   Cell Relative Area                     ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Interconnect Bounding Box              ; (126, 102) - (219, 153)               ; (216, 37) - (350, 104) ; (328, 37) - (349, 49) ;
+;   Interconnect Area Covered              ; 4888                                  ; 9180                   ; 286                   ;
+;   Interconnect Relative Area             ; 1.051                                 ; 1.023                  ; 1.000                 ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+
+Path #9
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                        ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                           ; Path                                                                                                             ; Worst-Case Path After                                                                                            ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp_reset_released                                                   ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                 ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a396~reg0 ;
+; To Node                    ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a396~reg0 ; vpart|engine|vp|pes_8|writeComb|procDataReg[396]                                                                 ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Setup Slack                ; -0.273                                                                           ; -1.090                                                                                                           ; 0.026                                                                                                            ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                             ; Slow vid1 100C Model                                                                                             ; Slow vid1 100C Model                                                                                             ;
+; Clock Skew                 ; -0.142                                                                           ; -0.132                                                                                                           ; -0.101                                                                                                           ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                                        ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Property                                 ; Worst-Case Path Before                ; Path                   ; Worst-Case Path After ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -0.273                                ; -1.090                 ; 0.026                 ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.385                                 ; 2.277                  ; 1.410                 ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [aa] Latch Edge Time               ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [bb] Launch Edge Time              ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;     [b] Clock Uncertainty                ; -0.030                                ; -0.030                 ; -0.030                ;
+;     [c] uTco                             ; 0.201                                 ; 0.221                  ; 1.187                 ;
+;     [d] uTsu                             ; -0.116                                ; -0.028                 ; -0.127                ;
+;   [B] Clock Skew [=a-b+c]                ; -0.142                                ; -0.132                 ; -0.101                ;
+;     [a] Required Clock Delay             ; 5.087                                 ; 5.134                  ; 5.163                 ;
+;     [b] Arrival Clock Delay              ; 5.995                                 ; 5.966                  ; 6.022                 ;
+;     [c] Clock Effect Adjustments         ; 0.766                                 ; 0.700                  ; 0.758                 ;
+;   [C] Logic Delay [=a+b]                 ; 0.399                                 ; 0.731                  ; 0.417                 ;
+;     [a] Cell Delay                       ; 0.199                                 ; 0.531                  ; 0.229                 ;
+;     [b] Local IC Delay                   ; 0.200                                 ; 0.200                  ; 0.188                 ;
+;   [D] Fabric IC Delay                    ; 2.117                                 ; 2.504                  ; 0.866                 ;
+; From Node Info                           ;                                       ;                        ;                       ;
+;   Type                                   ; ALM Register                          ; Hyper-Register         ; EC                    ;
+;   Retiming Restriction                   ; Node uses an asynchronous clear port. ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; To Node Info                             ;                                       ;                        ;                       ;
+;   Type                                   ; Hyper-Register                        ; EC                     ; ALM Register          ;
+;   Retiming Restriction                   ; --                                    ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; Interconnect Info                        ;                                       ;                        ;                       ;
+;   Logic Levels                           ; 1                                     ; 3                      ; 3                     ;
+;   Max Fanout                             ; 352                                   ; 2182                   ; 2                     ;
+;   I/O Column Crossings                   ; 0                                     ; 0                      ; 0                     ;
+;   Number of Wires                        ; 31                                    ; 35                     ; 15                    ;
+;   Route Stage Congestion Impact          ; Low                                   ; Low                    ; Low                   ;
+;   Estimated Delay Added for Hold         ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;   Sufficient Setup Margin for Hold       ; Yes                                   ; Yes                    ; Yes                   ;
+; Bounding Box Info                        ;                                       ;                        ;                       ;
+;   Source/Destination Bounding Box        ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (328, 37) - (349, 49) ;
+;   Source/Destination Area Covered        ; 4650                                  ; 8976                   ; 286                   ;
+;   Source/Destination Relative Area       ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Cell Bounding Box                      ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (326, 37) - (349, 49) ;
+;   Cell Area Covered                      ; 4650                                  ; 8976                   ; 312                   ;
+;   Cell Relative Area                     ; 1.000                                 ; 1.000                  ; 1.091                 ;
+;   Interconnect Bounding Box              ; (126, 102) - (219, 153)               ; (216, 37) - (350, 104) ; (326, 37) - (349, 51) ;
+;   Interconnect Area Covered              ; 4888                                  ; 9180                   ; 360                   ;
+;   Interconnect Relative Area             ; 1.051                                 ; 1.023                  ; 1.259                 ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+
+Path #10
+===============================================================================
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Path Summary                                                                                                                                                                                                                                                                                                                                        ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+;                            ; Worst-Case Path Before                                                           ; Path                                                                                                             ; Worst-Case Path After                                                                                            ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+; From Node                  ; vpart|engine|vp_reset_released                                                   ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff                                 ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a395~reg0 ;
+; To Node                    ; vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff ; vpart|engine|vp|pes_8|writeComb|dataMem_ext|Memory_rtl_0|auto_generated|altera_syncram_impl1|ram_block2a395~reg0 ; vpart|engine|vp|pes_8|writeComb|procDataReg[395]~791_BLOCK_INPUT_MUX_PASSTHROUGH_X323_Y54_N0_I32_dff             ;
+; Launch Clock               ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Latch Clock                ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ; pcie|u_pcie|iopll_0|iopll_0_outclk0                                                                              ;
+; Setup Slack                ; -0.273                                                                           ; -1.090                                                                                                           ; -0.079                                                                                                           ;
+; Setup Operating Conditions ; Slow vid1 100C Model                                                             ; Slow vid1 100C Model                                                                                             ; Slow vid1 100C Model                                                                                             ;
+; Clock Skew                 ; -0.142                                                                           ; -0.132                                                                                                           ; -0.120                                                                                                           ;
++----------------------------+----------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------+
+
++-----------------------------------------------------------------------------------------------------------------------------------+
+; Extra Info                                                                                                                        ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Property                                 ; Worst-Case Path Before                ; Path                   ; Worst-Case Path After ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+
+; Setup Slack Breakdown [=A+B-C-D]         ; -0.273                                ; -1.090                 ; -0.079                ;
+;   [A] Intrinsic Margin [=a+b-c-d]        ; 2.385                                 ; 2.277                  ; 1.400                 ;
+;     [a] Clock Edge Relationship [=aa-bb] ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [aa] Latch Edge Time               ; 2.500                                 ; 2.500                  ; 2.500                 ;
+;       [bb] Launch Edge Time              ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;     [b] Clock Uncertainty                ; -0.030                                ; -0.030                 ; -0.030                ;
+;     [c] uTco                             ; 0.201                                 ; 0.221                  ; 1.185                 ;
+;     [d] uTsu                             ; -0.116                                ; -0.028                 ; -0.115                ;
+;   [B] Clock Skew [=a-b+c]                ; -0.142                                ; -0.132                 ; -0.120                ;
+;     [a] Required Clock Delay             ; 5.087                                 ; 5.134                  ; 5.144                 ;
+;     [b] Arrival Clock Delay              ; 5.995                                 ; 5.966                  ; 6.022                 ;
+;     [c] Clock Effect Adjustments         ; 0.766                                 ; 0.700                  ; 0.758                 ;
+;   [C] Logic Delay [=a+b]                 ; 0.399                                 ; 0.731                  ; 0.341                 ;
+;     [a] Cell Delay                       ; 0.199                                 ; 0.531                  ; 0.181                 ;
+;     [b] Local IC Delay                   ; 0.200                                 ; 0.200                  ; 0.160                 ;
+;   [D] Fabric IC Delay                    ; 2.117                                 ; 2.504                  ; 1.018                 ;
+; From Node Info                           ;                                       ;                        ;                       ;
+;   Type                                   ; ALM Register                          ; Hyper-Register         ; EC                    ;
+;   Retiming Restriction                   ; Node uses an asynchronous clear port. ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; To Node Info                             ;                                       ;                        ;                       ;
+;   Type                                   ; Hyper-Register                        ; EC                     ; Hyper-Register        ;
+;   Retiming Restriction                   ; --                                    ; --                     ; --                    ;
+;   Power-Up "Don't Care"                  ; Yes                                   ; Yes                    ; Yes                   ;
+;   Max Borrow Time                        ; 0.000                                 ; 0.000                  ; 0.000                 ;
+; Interconnect Info                        ;                                       ;                        ;                       ;
+;   Logic Levels                           ; 1                                     ; 3                      ; 2                     ;
+;   Max Fanout                             ; 352                                   ; 2182                   ; 2                     ;
+;   I/O Column Crossings                   ; 0                                     ; 0                      ; 0                     ;
+;   Number of Wires                        ; 31                                    ; 35                     ; 16                    ;
+;   Route Stage Congestion Impact          ; Low                                   ; Low                    ; Low                   ;
+;   Estimated Delay Added for Hold         ; 0.000                                 ; 0.000                  ; 0.000                 ;
+;   Sufficient Setup Margin for Hold       ; Yes                                   ; Yes                    ; Yes                   ;
+; Bounding Box Info                        ;                                       ;                        ;                       ;
+;   Source/Destination Bounding Box        ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (323, 37) - (349, 54) ;
+;   Source/Destination Area Covered        ; 4650                                  ; 8976                   ; 486                   ;
+;   Source/Destination Relative Area       ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Cell Bounding Box                      ; (126, 104) - (218, 153)               ; (218, 37) - (349, 104) ; (323, 37) - (349, 54) ;
+;   Cell Area Covered                      ; 4650                                  ; 8976                   ; 486                   ;
+;   Cell Relative Area                     ; 1.000                                 ; 1.000                  ; 1.000                 ;
+;   Interconnect Bounding Box              ; (126, 102) - (219, 153)               ; (216, 37) - (350, 104) ; (323, 37) - (349, 54) ;
+;   Interconnect Area Covered              ; 4888                                  ; 9180                   ; 486                   ;
+;   Interconnect Relative Area             ; 1.051                                 ; 1.023                  ; 1.000                 ;
++------------------------------------------+---------------------------------------+------------------------+-----------------------+

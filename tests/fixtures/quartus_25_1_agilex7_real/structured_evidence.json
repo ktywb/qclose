@@ -1,0 +1,137 @@
+{
+  "register_spread": {
+    "columns": [
+      "Register Name",
+      "Register Location",
+      "Number of Endpoints",
+      "Endpoint Centroid",
+      "Average Distance of Endpoints to Centroid",
+      "Total Distance of Endpoints to Centroid (Tension)"
+    ],
+    "record_count": 1,
+    "records": [
+      {
+        "fields": {
+          "Average Distance of Endpoints to Centroid": "109",
+          "Endpoint Centroid": "(230, 87)",
+          "Number of Endpoints": "34054",
+          "Register Location": "(218, 104)",
+          "Register Name": "vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff",
+          "Total Distance of Endpoints to Centroid (Tension)": "3733669"
+        },
+        "identity": {
+          "base": "vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff",
+          "exact": "vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff",
+          "hierarchy": "vpart|engine|vp",
+          "normalized": "vpart|engine|vp|partitionNumR[*]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff"
+        },
+        "node": "vpart|engine|vp|partitionNumR[0]~BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I0_dff",
+        "source": "rpt:register_spread.rpt"
+      }
+    ],
+    "source": "rpt:register_spread.rpt",
+    "truncated": false
+  },
+  "retiming_limits": {
+    "columns": [
+      "Clock Transfer",
+      "Limiting Reason",
+      "Recommendation"
+    ],
+    "record_count": 6,
+    "records": [
+      {
+        "fields": {
+          "Clock Transfer": "Clock Domain pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "Limiting Reason": "Insufficient Registers",
+          "Recommendation": "See the Fast Forward Timing Closure Recommendations report for step-by-step suggestions for RTL changes and estimated performance"
+        },
+        "identity": {
+          "base": "Clock Domain pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "exact": "Clock Domain pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "hierarchy": "Clock Domain pcie|u_pcie|iopll_0",
+          "normalized": "Clock Domain pcie|u_pcie|iopll_0|iopll_0_outclk0"
+        },
+        "node": "Clock Domain pcie|u_pcie|iopll_0|iopll_0_outclk0",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      },
+      {
+        "fields": {
+          "Clock Transfer": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "Limiting Reason": "Meets timing requirements: No further analysis performed.",
+          "Recommendation": "None"
+        },
+        "identity": {
+          "base": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "exact": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "hierarchy": "intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip",
+          "normalized": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout"
+        },
+        "node": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      },
+      {
+        "fields": {
+          "Clock Transfer": "Clock Domain altera_int_osc_clk",
+          "Limiting Reason": "Meets timing requirements: No further analysis performed.",
+          "Recommendation": "None"
+        },
+        "identity": {
+          "base": "Clock Domain altera_int_osc_clk",
+          "exact": "Clock Domain altera_int_osc_clk",
+          "hierarchy": "Clock Domain altera_int_osc_clk",
+          "normalized": "Clock Domain altera_int_osc_clk"
+        },
+        "node": "Clock Domain altera_int_osc_clk",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      },
+      {
+        "fields": {
+          "Clock Transfer": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout_slow",
+          "Limiting Reason": "Meets timing requirements: No further analysis performed.",
+          "Recommendation": "None"
+        },
+        "identity": {
+          "base": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout_slow",
+          "exact": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout_slow",
+          "hierarchy": "intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip",
+          "normalized": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout_slow"
+        },
+        "node": "Clock Domain pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout_slow",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      },
+      {
+        "fields": {
+          "Clock Transfer": "Transfer from pcie|u_pcie|iopll_0|iopll_0_outclk0 to pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "Limiting Reason": "Meets timing requirements: No further analysis performed.",
+          "Recommendation": "None"
+        },
+        "identity": {
+          "base": "Transfer from pcie|u_pcie|iopll_0|iopll_0_outclk0 to pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "exact": "Transfer from pcie|u_pcie|iopll_0|iopll_0_outclk0 to pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+          "hierarchy": "intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip",
+          "normalized": "Transfer from pcie|u_pcie|iopll_0|iopll_0_outclk0 to pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout"
+        },
+        "node": "Transfer from pcie|u_pcie|iopll_0|iopll_0_outclk0 to pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      },
+      {
+        "fields": {
+          "Clock Transfer": "Transfer from pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "Limiting Reason": "Meets timing requirements: No further analysis performed.",
+          "Recommendation": "None"
+        },
+        "identity": {
+          "base": "Transfer from pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "exact": "Transfer from pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0|iopll_0_outclk0",
+          "hierarchy": "intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0",
+          "normalized": "Transfer from pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0|iopll_0_outclk0"
+        },
+        "node": "Transfer from pcie|u_pcie|intel_pcie_rtile_mcdma_2|intel_pcie_rtile_mcdma_2|ast_hip|intel_pcie_rtile_ast_hip_pld_clkout to pcie|u_pcie|iopll_0|iopll_0_outclk0",
+        "source": "panel:Fitter||Retime Stage||Retiming Limit Details||Retiming Limit Summary"
+      }
+    ],
+    "source": "report_db",
+    "truncated": false
+  }
+}

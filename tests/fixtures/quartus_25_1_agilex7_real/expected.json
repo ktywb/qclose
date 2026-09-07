@@ -1,0 +1,67 @@
+{
+  "quartus_version_prefix": "Version 25.1.0",
+  "path_count": 10,
+  "path_groups": [
+    {
+      "indices": [0, 1, 2, 3, 4],
+      "from_contains": "pes_5|writeComb|metaTagMem_ext",
+      "to_contains": "pes_5|writeComb|procDataReg",
+      "corner": "Slow vid1 100C Model",
+      "from_clock_suffix": "iopll_0_outclk0",
+      "to_clock_suffix": "iopll_0_outclk0",
+      "data_delay_ns": 3.468,
+      "logic_levels": 6,
+      "utco_ns": 1.187,
+      "cell_delay_ns": 0.426,
+      "local_ic_delay_ns": 0.515,
+      "fabric_ic_delay_ns": 1.340,
+      "route_ratio": 0.5348904267589389,
+      "classification": "mixed"
+    },
+    {
+      "indices": [5, 6, 7, 8, 9],
+      "from_contains": "vpart|engine|vp|partitionNumR[0]",
+      "to_contains": "pes_8|writeComb|dataMem_ext",
+      "corner": "Slow vid1 100C Model",
+      "from_clock_suffix": "iopll_0_outclk0",
+      "to_clock_suffix": "iopll_0_outclk0",
+      "slack_ns": -1.090,
+      "data_delay_ns": 3.456,
+      "logic_levels": 3,
+      "utco_ns": 0.221,
+      "cell_delay_ns": 0.531,
+      "local_ic_delay_ns": 0.200,
+      "fabric_ic_delay_ns": 2.504,
+      "route_ratio": 0.7824074074074074,
+      "classification": "routing-limited"
+    }
+  ],
+  "issues": [
+    {
+      "root_node": "vpart|engine|vp|pes_5|writeComb|opTypeReg[0]~0~cw_la_lab/lab_lut6outb[3]",
+      "selection_method": "common-exact-node",
+      "sampled_paths": 5,
+      "primary_diagnosis": "MIXED_DELAY",
+      "required_contributors": ["HIGH_FANOUT", "MEMORY_ENDPOINT"]
+    },
+    {
+      "root_node": "vpart|engine|vp|pes_0|writeComb|add_0~56|cin",
+      "selection_method": "bottleneck-node",
+      "sampled_paths": 5,
+      "primary_diagnosis": "ROUTING_LIMITED",
+      "required_contributors": ["HIGH_FANOUT", "PHYSICAL_SPREAD", "MEMORY_ENDPOINT"]
+    }
+  ],
+  "normalization": {
+    "duplicate_input": "vpart|engine|vp|state[1]~RTM_Duplicate_34",
+    "duplicate_base": "vpart|engine|vp|state[1]",
+    "generated_nodes_that_must_stay_distinct": [
+      "top|unit|add_0~16|cin",
+      "top|unit|add_0~56|cin"
+    ],
+    "bus_bits_that_may_normalize_together": [
+      "top|unit|payload[3]",
+      "top|unit|payload[7]"
+    ]
+  }
+}

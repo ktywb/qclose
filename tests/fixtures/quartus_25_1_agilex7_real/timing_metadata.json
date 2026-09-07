@@ -1,0 +1,7 @@
+{
+  "detailed_paths": 20,
+  "paths_per_clock": 50,
+  "project": "vpart_pcie",
+  "quartus_version": "Version 25.1.0 Build 129 03/26/2025 Patches 0.36 SC Pro Edition",
+  "revision": "vpart_pcie"
+}

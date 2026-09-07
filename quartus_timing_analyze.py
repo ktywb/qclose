@@ -24,8 +24,9 @@ from typing import Any, Iterable
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_ROOT = Path("logs/timing-analysis")
 SOURCE_SUFFIXES = {".scala", ".v", ".sv", ".sdc", ".qsf", ".tcl"}
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DELAY_TOLERANCE_NS = 0.002
+ISSUE_WNS_CHANGE_NS = 0.005
 
 
 def read_json(path: Path, default: Any = None) -> Any:
@@ -206,17 +207,22 @@ def compilation_state(project_root: Path, project: str, fingerprint: dict[str, A
 
 
 def normalize_node_name(name: str) -> str:
+    """Normalize bus lanes only; fitter-generated numeric names stay distinct.
+
+    Replacing anonymous ``i123`` or ``~42`` fragments caused unrelated fitted
+    cells in the same hierarchy to compare equal.  Bus-lane normalization is
+    retained as medium-strength evidence, never as an exact identity.
+    """
     name = re.sub(r"\[\d+\]", "[*]", name)
-    name = re.sub(r"(?<![A-Za-z])i\d+", "i*", name)
-    name = re.sub(r"~\d+", "~*", name)
     return name
 
 
 def base_node_name(name: str) -> str:
     """Remove common post-fit replica/location suffixes without losing hierarchy."""
     value = name.strip()
-    value = re.sub(r"_(?:Duplicate|DUPLICATE)(?:_\d+)*", "", value, flags=re.I)
-    value = re.sub(r"~(?:RTM|ERTM|DUPLICATE)[A-Za-z0-9_]*", "", value, flags=re.I)
+    pin_suffix = r"(?=(?:\|(?:q|d|clk))?$)"
+    value = re.sub(rf"(?:~_|_)Duplicate(?:_\d+)*{pin_suffix}", "", value, flags=re.I)
+    value = re.sub(rf"~(?:RTM|ERTM|DUPLICATE)[A-Za-z0-9_]*{pin_suffix}", "", value, flags=re.I)
     value = re.sub(r"_(?:R\d+|C\d+)_X\d+_Y\d+_N\d+_I\d+_(?:dff|lut)$", "", value, flags=re.I)
     return value
 
@@ -258,6 +264,34 @@ def data_path_points(path: dict[str, Any]) -> list[dict[str, Any]]:
             0,
         )
     return points[start_index:]
+
+
+def logical_path_node_records(path: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return logical/cell path points, excluding anonymous routing resources."""
+    records: dict[str, dict[str, Any]] = {}
+    route_types = {"ic", "interconnect", "re", "routing element"}
+    for position, point in enumerate(data_path_points(path)):
+        point_type = str(point.get("type", "")).lower()
+        if point_type in route_types or "routing element" in point_type or "local interconnect" in point_type:
+            continue
+        node = str(point.get("node", "")).strip()
+        if not node:
+            continue
+        fanout = int(numeric(point.get("fanout")) or 0)
+        delay = numeric(point.get("incremental_delay_ns")) or 0.0
+        current = records.get(node)
+        if current is None:
+            records[node] = {
+                "node": node,
+                "identity": node_identity(node),
+                "position": position,
+                "max_fanout": fanout,
+                "max_incremental_delay_ns": delay,
+            }
+        else:
+            current["max_fanout"] = max(current["max_fanout"], fanout)
+            current["max_incremental_delay_ns"] = max(current["max_incremental_delay_ns"], delay)
+    return list(records.values())
 
 
 def point_metrics(path: dict[str, Any]) -> dict[str, Any]:
@@ -477,7 +511,11 @@ def match_neighbor_paths(
     return matches
 
 
-def apply_neighbor_validation(metrics: dict[str, Any], neighbor: dict[str, Any] | None) -> dict[str, Any]:
+def apply_neighbor_validation(
+    metrics: dict[str, Any],
+    neighbor: dict[str, Any] | None,
+    path: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if neighbor is None:
         metrics["quartus_breakdown_validation"] = {"status": "unavailable", "source": None}
         return metrics
@@ -497,11 +535,41 @@ def apply_neighbor_validation(metrics: dict[str, Any], neighbor: dict[str, Any] 
         if quartus_utco is not None
         else None
     )
-    errors = [error for error in (route_error, logic_cell_error, launch_error) if error is not None]
-    if len(errors) != 3:
+    path = path or {}
+    quartus_data = (
+        quartus_utco + quartus_cell + local_ic + fabric_ic
+        if None not in (quartus_utco, quartus_cell, local_ic, fabric_ic)
+        else None
+    )
+    path_data = numeric(path.get("data_delay_ns"))
+    path_slack = numeric(path.get("slack_ns"))
+    neighbor_slack = numeric(neighbor.get("slack_ns"))
+    data_error = abs(path_data - quartus_data) if None not in (path_data, quartus_data) else None
+    slack_error = abs(path_slack - neighbor_slack) if None not in (path_slack, neighbor_slack) else None
+    level_error = (
+        abs((numeric(path.get("logic_levels")) or 0) - (numeric(neighbor.get("logic_levels")) or 0))
+        if numeric(path.get("logic_levels")) is not None and numeric(neighbor.get("logic_levels")) is not None
+        else None
+    )
+    identity_checks = {
+        "from": not path or path.get("from") == neighbor.get("from"),
+        "to": not path or path.get("to") == neighbor.get("to"),
+        "from_clock": not path or path.get("from_clock") == neighbor.get("from_clock"),
+        "to_clock": not path or path.get("to_clock") == neighbor.get("to_clock"),
+        "corner": not path or path.get("corner") == neighbor.get("corner"),
+    }
+    delay_errors = [error for error in (route_error, logic_cell_error, launch_error, data_error, slack_error) if error is not None]
+    required_error_count = 3 if not path else 5
+    if len(delay_errors) != required_error_count or (path and level_error is None):
         status = "unavailable"
     else:
-        status = "pass" if max(errors) <= DELAY_TOLERANCE_NS else "fail"
+        status = (
+            "pass"
+            if max(delay_errors) <= DELAY_TOLERANCE_NS
+            and (level_error or 0) == 0
+            and all(identity_checks.values())
+            else "fail"
+        )
     metrics["local_ic_delay_ns"] = local_ic
     metrics["fabric_ic_delay_ns"] = fabric_ic
     metrics["quartus_breakdown_validation"] = {
@@ -510,6 +578,10 @@ def apply_neighbor_validation(metrics: dict[str, Any], neighbor: dict[str, Any] 
         "route_sum_error_ns": route_error,
         "logic_cell_error_ns": logic_cell_error,
         "launch_utco_error_ns": launch_error,
+        "data_delay_error_ns": data_error,
+        "slack_error_ns": slack_error,
+        "logic_levels_error": level_error,
+        "identity_checks": identity_checks,
         "tolerance_ns": DELAY_TOLERANCE_NS,
     }
     if status == "pass" and metrics.get("consistency", {}).get("status") == "pass":
@@ -792,11 +864,11 @@ def node_match_confidence(record: dict[str, Any], path_nodes: list[dict[str, str
         if exact and exact == path_node.get("exact"):
             return 1.0, "exact-node"
         if base and len(base) >= 12 and base == path_node.get("base"):
-            return 0.9, "base-node"
+            return 0.85, "base-node"
         if normalized and len(normalized) >= 12 and normalized == path_node.get("normalized"):
-            return 0.8, "normalized-node"
+            return 0.65, "normalized-node"
     if identity.get("hierarchy") and identity.get("hierarchy") == hierarchy:
-        return 0.45, "same-hierarchy"
+        return 0.2, "same-hierarchy"
     return 0.0, "none"
 
 
@@ -859,30 +931,192 @@ def path_aggregate(metrics: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def cluster_issue_entries(
+    detailed_paths: list[dict[str, Any]],
+    detailed_metrics: list[dict[str, Any]],
+    structured: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Cluster failing paths around a shared node, not their destination hierarchy."""
+    entries = []
+    for path, metrics in zip(detailed_paths, detailed_metrics):
+        slack = numeric(path.get("slack_ns"))
+        if slack is not None and slack < 0:
+            entries.append({"path": path, "metrics": metrics, "nodes": logical_path_node_records(path)})
+    unassigned = set(range(len(entries)))
+    clusters: list[dict[str, Any]] = []
+
+    # A Quartus bottleneck traversed by multiple sampled paths is the preferred
+    # issue identity.  Hierarchy-only matches are deliberately excluded.
+    bottleneck_candidates = []
+    for record in structured.get("bottlenecks", {}).get("records", []):
+        matched: dict[int, tuple[float, str]] = {}
+        for index, entry in enumerate(entries):
+            identities = [node["identity"] for node in entry["nodes"]]
+            confidence, method = node_match_confidence(record, identities, "")
+            if confidence >= 0.60:
+                matched[index] = (confidence, method)
+        if len(matched) < 2:
+            continue
+        fields = record.get("fields", {})
+        bottleneck_candidates.append(
+            {
+                "record": record,
+                "matched": matched,
+                "score": (
+                    len(matched),
+                    min(confidence for confidence, _ in matched.values()),
+                    numeric(fields.get("Rating")) or 0.0,
+                ),
+            }
+        )
+    for candidate in sorted(bottleneck_candidates, key=lambda item: item["score"], reverse=True):
+        members = sorted(set(candidate["matched"]) & unassigned)
+        if len(members) < 2:
+            continue
+        record = candidate["record"]
+        methods = Counter(candidate["matched"][index][1] for index in members)
+        minimum_match = min(candidate["matched"][index][0] for index in members)
+        clusters.append(
+            {
+                "member_indices": members,
+                "root": {
+                    "node": record.get("node", ""),
+                    "identity": record.get("identity", {}),
+                    "selection_method": "bottleneck-node",
+                    "source": record.get("source"),
+                    "sampled_path_count": len(members),
+                    "match_methods": dict(methods),
+                    "match_confidence": minimum_match,
+                    "grouping_confidence": 1.0 if minimum_match == 1.0 else 0.85,
+                    "fields": record.get("fields", {}),
+                },
+            }
+        )
+        unassigned.difference_update(members)
+
+    # For paths not covered by report_bottleneck, find a repeated logical node.
+    # Exact/base common-cone identities outrank normalized bus-lane identities.
+    common_candidates: dict[tuple[str, str], dict[str, Any]] = {}
+    for index in unassigned:
+        for node in entries[index]["nodes"]:
+            for identity_kind, strength in (("exact", 1.0), ("base", 0.85), ("normalized", 0.65)):
+                value = node["identity"].get(identity_kind, "")
+                if len(value) < 12:
+                    continue
+                candidate = common_candidates.setdefault(
+                    (identity_kind, value),
+                    {
+                        "identity_kind": identity_kind,
+                        "node": value,
+                        "identity": node_identity(value),
+                        "members": set(),
+                        "strength": strength,
+                        "max_fanout": 0,
+                        "max_delay": 0.0,
+                    },
+                )
+                candidate["members"].add(index)
+                candidate["max_fanout"] = max(candidate["max_fanout"], node["max_fanout"])
+                candidate["max_delay"] = max(candidate["max_delay"], node["max_incremental_delay_ns"])
+    candidates = [candidate for candidate in common_candidates.values() if len(candidate["members"]) >= 2]
+    candidates.sort(
+        key=lambda item: (
+            len(item["members"]),
+            item["strength"],
+            item["max_fanout"],
+            item["max_delay"],
+            len(item["node"]),
+        ),
+        reverse=True,
+    )
+    for candidate in candidates:
+        members = sorted(candidate["members"] & unassigned)
+        if len(members) < 2:
+            continue
+        kind = candidate["identity_kind"]
+        grouping_confidence = {"exact": 0.90, "base": 0.80, "normalized": 0.60}[kind]
+        clusters.append(
+            {
+                "member_indices": members,
+                "root": {
+                    "node": candidate["node"],
+                    "identity": candidate["identity"],
+                    "selection_method": f"common-{kind}-node",
+                    "source": "timing_api:detailed_path_points",
+                    "sampled_path_count": len(members),
+                    "match_methods": {f"{kind}-node": len(members)},
+                    "match_confidence": candidate["strength"],
+                    "grouping_confidence": grouping_confidence,
+                    "fields": {
+                        "Max Fanout": candidate["max_fanout"],
+                        "Max Incremental Delay": candidate["max_delay"],
+                    },
+                },
+            }
+        )
+        unassigned.difference_update(members)
+
+    # Endpoint identity is a conservative fallback.  Normalized bus bits may be
+    # grouped, but carry lower grouping confidence.  Hierarchy is display-only
+    # unless an endpoint is absent.
+    endpoint_groups: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for index in unassigned:
+        endpoint = str(entries[index]["path"].get("to", ""))
+        if endpoint:
+            identity = node_identity(endpoint)
+            endpoint_groups[("endpoint", identity["normalized"])].append(index)
+        else:
+            endpoint_groups[("hierarchy", hierarchy_group(str(entries[index]["path"].get("from", ""))))].append(index)
+    for (kind, key), members in endpoint_groups.items():
+        identity = node_identity(key)
+        clusters.append(
+            {
+                "member_indices": sorted(members),
+                "root": {
+                    "node": key,
+                    "identity": identity,
+                    "selection_method": f"{kind}-fallback",
+                    "source": "timing_api:get_timing_paths",
+                    "sampled_path_count": len(members),
+                    "match_methods": {"normalized-node" if kind == "endpoint" else "same-hierarchy": len(members)},
+                    "match_confidence": 0.55 if kind == "endpoint" else 0.20,
+                    "grouping_confidence": 0.50 if kind == "endpoint" else 0.25,
+                    "fields": {},
+                },
+            }
+        )
+    for cluster in clusters:
+        cluster["entries"] = [entries[index] for index in cluster.pop("member_indices")]
+    return clusters
+
+
+def component_confidence(statuses: Iterable[str], mapping: dict[str, float]) -> float:
+    values = [mapping.get(status, 0.0) for status in statuses]
+    return sum(values) / len(values) if values else 0.0
+
+
 def build_issues(
     detailed_paths: list[dict[str, Any]],
     detailed_metrics: list[dict[str, Any]],
     structured: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    grouped: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = defaultdict(list)
-    for path, metrics in zip(detailed_paths, detailed_metrics):
-        slack = numeric(path.get("slack_ns"))
-        if slack is None or slack >= 0:
-            continue
-        grouped[hierarchy_group(str(path.get("to", "")))].append((path, metrics))
-
     issues = []
-    for hierarchy, entries in grouped.items():
-        metrics_list = [metrics for _, metrics in entries]
+    for cluster in cluster_issue_entries(detailed_paths, detailed_metrics, structured):
+        entries = cluster["entries"]
+        root = cluster["root"]
+        metrics_list = [entry["metrics"] for entry in entries]
         aggregate = path_aggregate(metrics_list)
+        hierarchy = root.get("identity", {}).get("hierarchy") or hierarchy_group(root.get("node", ""))
         path_nodes = {
-            identity["exact"]: identity
-            for path, _ in entries
-            for identity in [node_identity(str(point.get("node", ""))) for point in data_path_points(path)]
-            if identity["exact"]
+            node["identity"]["exact"]: node["identity"]
+            for entry in entries
+            for node in entry["nodes"]
+            if node["identity"]["exact"]
         }
         evidence: dict[str, list[dict[str, Any]]] = {}
+        contextual_evidence: dict[str, list[dict[str, Any]]] = {}
         for category in (
+            "bottlenecks",
             "high_fanout",
             "register_spread",
             "route_nets",
@@ -890,68 +1124,173 @@ def build_issues(
             "peak_wire_details",
             "retiming_restrictions",
         ):
-            matches = []
+            node_matches = []
+            context_matches = []
             for record in structured.get(category, {}).get("records", []):
                 confidence, method = node_match_confidence(record, list(path_nodes.values()), hierarchy)
-                if confidence >= 0.45:
-                    matches.append(compact_evidence(record, confidence, method))
-            matches.sort(key=lambda item: item["match_confidence"], reverse=True)
-            if matches:
-                evidence[category] = matches[:10]
+                item = compact_evidence(record, confidence, method)
+                if confidence >= 0.60:
+                    node_matches.append(item)
+                elif confidence >= 0.20:
+                    context_matches.append(item)
+            node_matches.sort(key=lambda item: item["match_confidence"], reverse=True)
+            if node_matches:
+                evidence[category] = node_matches[:10]
+            if context_matches:
+                contextual_evidence[category] = context_matches[:5]
 
-        clock_evidence = []
-        path_clocks = {str(path.get("to_clock", "")) for path, _ in entries}
+        # Fanout measured on a detailed timing point is already node-level
+        # Quartus evidence; retain the node and affected sampled-path count.
+        fanout_nodes: dict[str, dict[str, Any]] = {}
+        for entry in entries:
+            metrics = entry["metrics"]
+            fanout = int(numeric(metrics.get("max_fanout")) or 0)
+            node = str(metrics.get("max_fanout_node", ""))
+            if fanout < 64 or not node:
+                continue
+            item = fanout_nodes.setdefault(
+                node,
+                {
+                    "source": "timing_api:detailed_path_points",
+                    "node": node,
+                    "match_confidence": 1.0,
+                    "match_method": "exact-node",
+                    "fields": {"Max Fanout": fanout, "Sampled Failing Paths": 0},
+                },
+            )
+            item["fields"]["Max Fanout"] = max(item["fields"]["Max Fanout"], fanout)
+            item["fields"]["Sampled Failing Paths"] += 1
+        if fanout_nodes:
+            evidence["path_point_fanout"] = sorted(
+                fanout_nodes.values(), key=lambda item: item["fields"]["Max Fanout"], reverse=True
+            )[:10]
+
+        path_clocks = {str(entry["path"].get("to_clock", "")) for entry in entries}
+        clock_context = []
         for record in structured.get("retiming_limits", {}).get("records", []):
             fields = record.get("fields", {})
             transfer = first_field(fields, ("Clock Transfer",))
             if any(clock and clock in transfer for clock in path_clocks):
-                clock_evidence.append(compact_evidence(record, 0.7, "same-clock"))
-        if clock_evidence:
-            evidence["retiming_limits"] = clock_evidence[:10]
+                clock_context.append(compact_evidence(record, 0.35, "same-clock-context"))
+        if clock_context:
+            contextual_evidence["retiming_limits"] = clock_context[:10]
 
-        diagnoses = []
+        classes = Counter(str(metrics.get("classification", "unknown")) for metrics in metrics_list)
+        ratios = [value for metrics in metrics_list if (value := numeric(metrics.get("route_ratio"))) is not None]
+        heterogeneous = "routing-limited" in classes and "logic-limited" in classes and max(ratios) - min(ratios) >= 0.30
         route_ratio = numeric(aggregate.get("average_route_ratio"))
-        if route_ratio is not None and route_ratio >= 0.60:
-            diagnoses.append("ROUTING_LIMITED")
+        if heterogeneous:
+            primary_diagnosis = "MIXED_ROOT_CAUSE"
+        elif route_ratio is not None and route_ratio >= 0.60:
+            primary_diagnosis = "ROUTING_LIMITED"
         elif route_ratio is not None and route_ratio <= 0.35:
-            diagnoses.append("LOGIC_LIMITED")
+            primary_diagnosis = "LOGIC_LIMITED"
         else:
-            diagnoses.append("MIXED_DELAY")
+            primary_diagnosis = "MIXED_DELAY"
+
+        def has_node_evidence(category: str) -> bool:
+            return any((numeric(item.get("match_confidence")) or 0) >= 0.60 for item in evidence.get(category, []))
+
+        contributors = []
         if aggregate["max_logic_levels"] >= 8:
-            diagnoses.append("DEEP_LOGIC")
-        def has_strong_evidence(category: str) -> bool:
-            return any((numeric(item.get("match_confidence")) or 0) >= 0.75 for item in evidence.get(category, []))
+            contributors.append("DEEP_LOGIC")
+        if has_node_evidence("path_point_fanout") or has_node_evidence("high_fanout"):
+            contributors.append("HIGH_FANOUT")
+        if has_node_evidence("register_spread"):
+            contributors.append("PHYSICAL_SPREAD")
+        if any(has_node_evidence(category) for category in ("route_nets", "highest_wire_count", "peak_wire_details")):
+            contributors.append("ROUTING_PRESSURE")
+        if has_node_evidence("retiming_restrictions"):
+            contributors.append("RETIMING_RESTRICTED")
+        elif contextual_evidence.get("retiming_limits"):
+            contributors.append("CLOCK_DOMAIN_RETIMING_LIMIT")
+        if any(
+            "Memory_rtl" in str(entry["path"].get("from", ""))
+            or "Memory_rtl" in str(entry["path"].get("to", ""))
+            for entry in entries
+        ):
+            contributors.append("MEMORY_ENDPOINT")
 
-        if aggregate["max_fanout"] >= 64 or has_strong_evidence("high_fanout"):
-            diagnoses.append("HIGH_FANOUT")
-        if has_strong_evidence("register_spread"):
-            diagnoses.append("PHYSICAL_SPREAD")
-        if any(has_strong_evidence(category) for category in ("route_nets", "highest_wire_count", "peak_wire_details")):
-            diagnoses.append("ROUTING_PRESSURE")
-        if has_strong_evidence("retiming_restrictions"):
-            diagnoses.append("RETIMING_RESTRICTED")
-        elif evidence.get("retiming_limits"):
-            diagnoses.append("CLOCK_DOMAIN_RETIMING_LIMIT")
-        if any("Memory_rtl" in str(path.get("from", "")) or "Memory_rtl" in str(path.get("to", "")) for path, _ in entries):
-            diagnoses.append("MEMORY_ENDPOINT")
+        uncertainties = []
+        if heterogeneous:
+            uncertainties.append("conflicting delay character inside one root cluster")
+        if root["selection_method"] == "common-normalized-node":
+            uncertainties.append("root relies on bus-index normalization")
+        if root["selection_method"].endswith("fallback"):
+            uncertainties.append(f"root uses {root['selection_method']}")
+        consistency_statuses = [metrics.get("consistency", {}).get("status", "fail") for metrics in metrics_list]
+        breakdown_statuses = [
+            metrics.get("quartus_breakdown_validation", {}).get("status", "unavailable") for metrics in metrics_list
+        ]
+        if "fail" in consistency_statuses:
+            uncertainties.append("timing point consistency failure")
+        if "fail" in breakdown_statuses:
+            uncertainties.append("Quartus delay breakdown mismatch")
+        elif "unavailable" in breakdown_statuses:
+            uncertainties.append("Quartus delay breakdown unavailable for part of sample")
 
-        path_confidence = 1.0 if aggregate["consistency_failures"] == 0 else 0.5
-        strongest_match = max(
-            (numeric(item.get("match_confidence")) or 0.0 for values in evidence.values() for item in values),
-            default=0.0,
+        timing_confidence = component_confidence(consistency_statuses, {"pass": 1.0, "warning": 0.60, "fail": 0.0})
+        breakdown_confidence = component_confidence(breakdown_statuses, {"pass": 1.0, "unavailable": 0.60, "fail": 0.0})
+        evidence_confidence = max(
+            [numeric(root.get("match_confidence")) or 0.0]
+            + [numeric(item.get("match_confidence")) or 0.0 for values in evidence.values() for item in values]
         )
-        diagnosis_confidence = min(1.0, 0.65 * path_confidence + 0.35 * strongest_match)
+        grouping_confidence = numeric(root.get("grouping_confidence")) or 0.0
+        overall = (timing_confidence + breakdown_confidence + evidence_confidence + grouping_confidence) / 4.0
+        if timing_confidence < 0.50:
+            overall = min(overall, 0.25)
+        elif timing_confidence < 1.0:
+            overall = min(overall, 0.79)
+        if breakdown_confidence == 0.0:
+            overall = min(overall, 0.35)
+        elif breakdown_confidence < 1.0:
+            overall = min(overall, 0.79)
+        if evidence_confidence < 0.60:
+            overall = min(overall, 0.79)
+        if heterogeneous:
+            overall = min(overall, 0.54)
+        if root["selection_method"] == "common-normalized-node":
+            overall = min(overall, 0.79)
+        if root["selection_method"] == "hierarchy-fallback":
+            overall = min(overall, 0.40)
+        confidence = {
+            "overall": overall,
+            "level": "high" if overall >= 0.80 else "medium" if overall >= 0.55 else "low",
+            "timing_consistency": timing_confidence,
+            "quartus_breakdown_validation": breakdown_confidence,
+            "evidence_match": evidence_confidence,
+            "root_cause_grouping": grouping_confidence,
+        }
+
+        identity_kind = "normalized" if "normalized" in root["selection_method"] else "base"
+        stable_root = root.get("identity", {}).get(identity_kind) or root.get("node", "")
+        issue_key = f"{root['selection_method']}:{stable_root}"
+        diagnoses = [primary_diagnosis, *contributors]
+        worst_entry = min(entries, key=lambda entry: numeric(entry["path"].get("slack_ns")) or 0)
+        path_keys = sorted(
+            {
+                f"{node_identity(str(entry['path'].get('from', '')))['normalized']} -> "
+                f"{node_identity(str(entry['path'].get('to', '')))['normalized']}"
+                for entry in entries
+            }
+        )
         issues.append(
             {
-                "issue_id": hashlib.sha1(hierarchy.encode()).hexdigest()[:12],
+                "issue_id": hashlib.sha1(issue_key.encode()).hexdigest()[:12],
+                "root_cause": root,
                 "hierarchy": hierarchy,
                 **aggregate,
+                "primary_diagnosis": primary_diagnosis,
+                "contributors": contributors,
+                "uncertainties": uncertainties,
                 "diagnoses": diagnoses,
                 "recommendations": issue_recommendations(diagnoses),
-                "diagnosis_confidence": diagnosis_confidence,
+                "confidence": confidence,
                 "evidence": evidence,
-                "worst_from": min(entries, key=lambda item: numeric(item[0].get("slack_ns")) or 0)[0].get("from"),
-                "worst_to": min(entries, key=lambda item: numeric(item[0].get("slack_ns")) or 0)[0].get("to"),
+                "contextual_evidence": contextual_evidence,
+                "path_keys": path_keys,
+                "worst_from": worst_entry["path"].get("from"),
+                "worst_to": worst_entry["path"].get("to"),
             }
         )
     issues.sort(key=lambda item: numeric(item.get("wns_ns")) if numeric(item.get("wns_ns")) is not None else 0)
@@ -999,7 +1338,7 @@ def summarize(run_dir: Path) -> dict[str, Any]:
     neighbor_matches = match_neighbor_paths(detailed_paths, neighbor_records)
     detailed_metrics = []
     for path, neighbor in zip(detailed_paths, neighbor_matches):
-        metrics = apply_neighbor_validation(point_metrics(path), neighbor)
+        metrics = apply_neighbor_validation(point_metrics(path), neighbor, path)
         detailed_metrics.append(
             {
                 "slack_ns": path.get("slack_ns"),
@@ -1060,10 +1399,9 @@ def summarize(run_dir: Path) -> dict[str, Any]:
 
     report_summary = selected_panel_summary(panels)
     relevant_nodes = [
-        node_identity(str(point.get("node", "")))
+        node["identity"]
         for path in detailed_paths
-        for point in data_path_points(path)
-        if str(point.get("node", ""))
+        for node in logical_path_node_records(path)
     ]
     structured = normalized_diagnostics(run_dir, report_summary, relevant_nodes)
     if neighbor_records:
@@ -1074,6 +1412,37 @@ def summarize(run_dir: Path) -> dict[str, Any]:
             "records": neighbor_records,
             "truncated": False,
         }
+    if bottleneck_columns:
+        structured["bottlenecks"] = normalized_records(
+            "rpt:bottlenecks.rpt", bottleneck_columns, bottleneck_rows, ("Node",), limit=100
+        )
+    parser_files = {
+        "logic_depth": "logic_depth.rpt",
+        "register_spread": "register_spread.rpt",
+        "net_delay": "net_delay.rpt",
+        "route_nets": "route_nets_of_interest.rpt",
+        "pipelining": "pipelining_info.rpt",
+        "retiming_restrictions": "retiming_restrictions.rpt",
+        "neighbor_paths": "neighbor_paths.rpt",
+        "bottlenecks": "bottlenecks.rpt",
+    }
+    parser_status = {}
+    for name, filename in parser_files.items():
+        report_path = run_dir / filename
+        if not report_path.exists():
+            parser_status[name] = {"status": "unavailable", "source": f"rpt:{filename}", "reason": "file missing"}
+        elif name not in structured:
+            parser_status[name] = {
+                "status": "warning",
+                "source": f"rpt:{filename}",
+                "reason": "report exists but no recognized records were parsed",
+            }
+        else:
+            parser_status[name] = {
+                "status": "pass",
+                "source": structured[name].get("source", f"rpt:{filename}"),
+                "records": len(structured[name].get("records", [])),
+            }
     issues = build_issues(detailed_paths, detailed_metrics, structured)
     metric_aggregate = path_aggregate(detailed_metrics)
 
@@ -1100,6 +1469,7 @@ def summarize(run_dir: Path) -> dict[str, Any]:
             "check_timing": {"columns": check_columns, "rows": check_rows},
             "asynchronous_cdc": {"columns": async_cdc_columns, "rows": async_cdc_rows},
             "structured": structured,
+            "parser_status": parser_status,
             "raw_files": diagnostic_files,
         },
         "selected_panel_count": len(panels),
@@ -1226,20 +1596,33 @@ def render_markdown(summary: dict[str, Any]) -> str:
         lines.extend(["", "## Correlated timing issues", ""])
         issue_rows = [
             [
-                issue.get("hierarchy"),
+                issue.get("root_cause", {}).get("node", issue.get("hierarchy")),
                 format_number(issue.get("wns_ns")),
                 issue.get("paths", 0),
                 format_number((issue.get("average_route_ratio") or 0) * 100, 1, "%"),
                 issue.get("max_logic_levels", 0),
                 issue.get("max_fanout", 0),
-                ", ".join(issue.get("diagnoses", [])),
-                format_number(issue.get("diagnosis_confidence"), 2),
+                issue.get("primary_diagnosis", "UNKNOWN"),
+                ", ".join(issue.get("contributors", [])) or "—",
+                issue.get("confidence", {}).get("level", "unknown"),
+                format_number(issue.get("confidence", {}).get("overall"), 2),
             ]
             for issue in issues[:20]
         ]
         lines.append(
             markdown_table(
-                ["Hierarchy", "WNS ns", "Paths", "Route %", "Levels", "Fanout", "Diagnosis", "Confidence"],
+                [
+                    "Root-cause node",
+                    "WNS ns",
+                    "Paths",
+                    "Route %",
+                    "Levels",
+                    "Fanout",
+                    "Primary",
+                    "Contributors",
+                    "Confidence",
+                    "Score",
+                ],
                 issue_rows,
             )
         )
@@ -1248,7 +1631,21 @@ def render_markdown(summary: dict[str, Any]) -> str:
             evidence_counts = ", ".join(
                 f"{name}={len(records)}" for name, records in sorted(issue.get("evidence", {}).items())
             ) or "path metrics only"
-            lines.append(f"- `{issue.get('hierarchy')}`: {evidence_counts}.")
+            root = issue.get("root_cause", {})
+            lines.append(
+                f"- `{root.get('node', issue.get('hierarchy'))}` "
+                f"({root.get('selection_method', 'legacy-group')}): {evidence_counts}."
+            )
+            confidence = issue.get("confidence", {})
+            lines.append(
+                "  - Confidence: "
+                f"timing={format_number(confidence.get('timing_consistency'), 2)}, "
+                f"breakdown={format_number(confidence.get('quartus_breakdown_validation'), 2)}, "
+                f"evidence={format_number(confidence.get('evidence_match'), 2)}, "
+                f"grouping={format_number(confidence.get('root_cause_grouping'), 2)}."
+            )
+            if issue.get("uncertainties"):
+                lines.append(f"  - Uncertainties: {', '.join(issue['uncertainties'])}.")
             for recommendation in issue.get("recommendations", []):
                 lines.append(f"  - {recommendation}")
 
@@ -1268,6 +1665,23 @@ def render_markdown(summary: dict[str, Any]) -> str:
                         data.get("truncated", False),
                     ]
                     for name, data in sorted(structured.items())
+                ],
+            )
+        )
+
+    parser_warnings = [
+        (name, status)
+        for name, status in summary.get("diagnostics", {}).get("parser_status", {}).items()
+        if status.get("status") != "pass"
+    ]
+    if parser_warnings:
+        lines.extend(["", "## Parser warnings", ""])
+        lines.append(
+            markdown_table(
+                ["Dataset", "Status", "Source", "Reason"],
+                [
+                    [name, status.get("status"), status.get("source"), status.get("reason")]
+                    for name, status in parser_warnings
                 ],
             )
         )
@@ -1394,6 +1808,26 @@ def evidence_count(issue: dict[str, Any]) -> int:
     return sum(len(records) for records in issue.get("evidence", {}).values())
 
 
+def issue_comparison_key(issue: dict[str, Any]) -> str:
+    if issue.get("issue_id"):
+        return str(issue["issue_id"])
+    root = issue.get("root_cause", {})
+    identity = root.get("identity", {})
+    return str(identity.get("base") or identity.get("normalized") or issue.get("hierarchy", ""))
+
+
+def issue_path_overlap(left: dict[str, Any], right: dict[str, Any]) -> float:
+    left_confidence = numeric(left.get("confidence", {}).get("overall")) or 0.0
+    right_confidence = numeric(right.get("confidence", {}).get("overall")) or 0.0
+    if min(left_confidence, right_confidence) < 0.55:
+        return 0.0
+    left_paths = set(left.get("path_keys", []))
+    right_paths = set(right.get("path_keys", []))
+    if not left_paths or not right_paths:
+        return 0.0
+    return len(left_paths & right_paths) / min(len(left_paths), len(right_paths))
+
+
 def compare_summaries(old_path: Path, new_path: Path) -> str:
     old_file, old = resolve_summary(old_path)
     new_file, new = resolve_summary(new_path)
@@ -1484,36 +1918,123 @@ def compare_summaries(old_path: Path, new_path: Path) -> str:
     lines.extend(["## Critical hierarchy changes", "", markdown_table(["Hierarchy", "Old WNS", "New WNS", "Delta", "Old paths", "New paths"], changed, 40), ""])
 
     if "issues" in old and "issues" in new:
-        old_issues = {item["hierarchy"]: item for item in old.get("issues", [])}
-        new_issues = {item["hierarchy"]: item for item in new.get("issues", [])}
-        issue_rows = []
-        for hierarchy in sorted(set(old_issues) | set(new_issues)):
-            old_issue = old_issues.get(hierarchy)
-            new_issue = new_issues.get(hierarchy)
-            status = "persisting" if old_issue and new_issue else "entered-sample" if new_issue else "left-sample"
+        old_issues = {issue_comparison_key(item): item for item in old.get("issues", [])}
+        new_issues = {issue_comparison_key(item): item for item in new.get("issues", [])}
+        matched_pairs: list[tuple[dict[str, Any] | None, dict[str, Any] | None, str]] = []
+        direct_keys = set(old_issues) & set(new_issues)
+        for key in direct_keys:
+            old_issue = old_issues[key]
+            new_issue = new_issues[key]
             old_wns = numeric(old_issue.get("wns_ns")) if old_issue else None
             new_wns = numeric(new_issue.get("wns_ns")) if new_issue else None
             delta = new_wns - old_wns if old_wns is not None and new_wns is not None else None
+            if delta is not None and delta > ISSUE_WNS_CHANGE_NS:
+                status = "improved"
+            elif delta is not None and delta < -ISSUE_WNS_CHANGE_NS:
+                status = "regressed"
+            else:
+                status = "persisting"
+            matched_pairs.append((old_issue, new_issue, status))
+
+        unmatched_old = {key: value for key, value in old_issues.items() if key not in direct_keys}
+        unmatched_new = {key: value for key, value in new_issues.items() if key not in direct_keys}
+        old_relations = {
+            key: [new_key for new_key, new_issue in unmatched_new.items() if issue_path_overlap(issue, new_issue) >= 0.50]
+            for key, issue in unmatched_old.items()
+        }
+        new_relations = {
+            key: [old_key for old_key, old_issue in unmatched_old.items() if issue_path_overlap(issue, old_issue) >= 0.50]
+            for key, issue in unmatched_new.items()
+        }
+        consumed_old: set[str] = set()
+        consumed_new: set[str] = set()
+        for old_key, new_keys in old_relations.items():
+            if len(new_keys) >= 2:
+                for new_key in new_keys:
+                    matched_pairs.append((unmatched_old[old_key], unmatched_new[new_key], "split"))
+                    consumed_new.add(new_key)
+                consumed_old.add(old_key)
+        for new_key, old_keys in new_relations.items():
+            if new_key in consumed_new or len(old_keys) < 2:
+                continue
+            for old_key in old_keys:
+                matched_pairs.append((unmatched_old[old_key], unmatched_new[new_key], "merged"))
+                consumed_old.add(old_key)
+            consumed_new.add(new_key)
+        for old_key, new_keys in old_relations.items():
+            available = [key for key in new_keys if key not in consumed_new]
+            if old_key not in consumed_old and len(available) == 1:
+                new_key = available[0]
+                matched_pairs.append((unmatched_old[old_key], unmatched_new[new_key], "uncertain"))
+                consumed_old.add(old_key)
+                consumed_new.add(new_key)
+        for key, issue in unmatched_old.items():
+            if key not in consumed_old:
+                matched_pairs.append((issue, None, "left-sample"))
+        for key, issue in unmatched_new.items():
+            if key not in consumed_new:
+                matched_pairs.append((None, issue, "entered-sample"))
+
+        issue_rows = []
+        for old_issue, new_issue, status in matched_pairs:
+            old_wns = numeric(old_issue.get("wns_ns")) if old_issue else None
+            new_wns = numeric(new_issue.get("wns_ns")) if new_issue else None
+            delta = new_wns - old_wns if old_wns is not None and new_wns is not None else None
+            root = (new_issue or old_issue or {}).get("root_cause", {})
             issue_rows.append(
                 [
-                    hierarchy,
+                    root.get("node") or (new_issue or old_issue or {}).get("hierarchy"),
                     status,
                     format_number(old_wns),
                     format_number(new_wns),
                     format_number(delta),
-                    ", ".join(old_issue.get("diagnoses", [])) if old_issue else "—",
-                    ", ".join(new_issue.get("diagnoses", [])) if new_issue else "—",
-                    evidence_count(old_issue) if old_issue else 0,
-                    evidence_count(new_issue) if new_issue else 0,
+                    old_issue.get("paths", 0) if old_issue else 0,
+                    new_issue.get("paths", 0) if new_issue else 0,
+                    format_number(old_issue.get("average_route_ratio") * 100 if old_issue and old_issue.get("average_route_ratio") is not None else None, 1),
+                    format_number(new_issue.get("average_route_ratio") * 100 if new_issue and new_issue.get("average_route_ratio") is not None else None, 1),
+                    old_issue.get("max_logic_levels", "—") if old_issue else "—",
+                    new_issue.get("max_logic_levels", "—") if new_issue else "—",
+                    old_issue.get("max_fanout", "—") if old_issue else "—",
+                    new_issue.get("max_fanout", "—") if new_issue else "—",
+                    old_issue.get("primary_diagnosis", "—") if old_issue else "—",
+                    new_issue.get("primary_diagnosis", "—") if new_issue else "—",
+                    ", ".join(old_issue.get("contributors", [])) if old_issue else "—",
+                    ", ".join(new_issue.get("contributors", [])) if new_issue else "—",
+                    format_number(old_issue.get("confidence", {}).get("overall"), 2) if old_issue else "—",
+                    format_number(new_issue.get("confidence", {}).get("overall"), 2) if new_issue else "—",
+                    format_number(old_issue.get("confidence", {}).get("evidence_match"), 2) if old_issue else "—",
+                    format_number(new_issue.get("confidence", {}).get("evidence_match"), 2) if new_issue else "—",
                 ]
             )
-        issue_rows.sort(key=lambda row: (row[1] != "entered-sample", row[3]))
+        issue_rows.sort(key=lambda row: (row[1] not in {"regressed", "entered-sample", "split", "merged"}, row[3]))
         lines.extend(
             [
                 "## Correlated issue changes",
                 "",
                 markdown_table(
-                    ["Hierarchy", "Status", "Old WNS", "New WNS", "Delta", "Old diagnosis", "New diagnosis", "Old evidence", "New evidence"],
+                    [
+                        "Root-cause node",
+                        "Status",
+                        "Old WNS",
+                        "New WNS",
+                        "Delta",
+                        "Old paths",
+                        "New paths",
+                        "Old route %",
+                        "New route %",
+                        "Old levels",
+                        "New levels",
+                        "Old fanout",
+                        "New fanout",
+                        "Old primary",
+                        "New primary",
+                        "Old contributors",
+                        "New contributors",
+                        "Old conf.",
+                        "New conf.",
+                        "Old evidence",
+                        "New evidence",
+                    ],
                     issue_rows,
                     50,
                 ),

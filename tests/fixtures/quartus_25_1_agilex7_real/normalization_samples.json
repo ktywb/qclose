@@ -1,0 +1,12 @@
+[
+  "vpart|engine|vp|partitionNumR[1]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X218_Y104_N0_I6_dff",
+  "vpart|engine|vp|partitionNumR[9]~_Duplicate_1",
+  "vpart|engine|vp|partitionNumR[10]~_Duplicate_4",
+  "vpart|engine|vp|histogramToOffset|s1InfoIsBuild_1~RTM",
+  "vpart|engine|vp|state[1]~RTM_Duplicate_34",
+  "vpart|engine|state[3]~DUPLICATE_C8_X115_Y162_N0_I3_dff",
+  "vpart|engine|state[0]~DUPLICATE_C8_X114_Y162_N0_I1_dff",
+  "vpart|engine|writeCombiner|addrReg[7]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X142_Y227_N0_I13_dff",
+  "vpart|engine|writeCombiner|addrReg[8]~DUPLICATE_BLOCK_INPUT_MUX_PASSTHROUGH_X142_Y227_N0_I8_dff",
+  "vpart|engine|vp|state[1]~RTM_Duplicate_32"
+]
