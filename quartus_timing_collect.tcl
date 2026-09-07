@@ -241,6 +241,7 @@ if {$detailed_path_count > 0} {
 close $detailed_channel
 
 set report_paths [expr {max(500, $paths_per_clock)}]
+set diagnostic_path_count [expr {max(1, $detailed_path_count)}]
 if {[catch {
     report_timing_by_source_files -setup -npaths $report_paths -nworst 1 \
         -file [file join $output_dir timing_by_source_files.rpt]
@@ -267,7 +268,7 @@ foreach {operation command} [list \
     report_cdc_viewer [list report_cdc_viewer -summary -file [file join $output_dir cdc_summary.rpt]] \
     report_asynch_cdc [list report_asynch_cdc -detail summary -nentries 200 -file [file join $output_dir asynch_cdc_summary.rpt]] \
     report_logic_depth [list report_logic_depth -setup -detail histogram -npaths 500 -nworst 1 -file [file join $output_dir logic_depth.rpt]] \
-    report_neighbor_paths [list report_neighbor_paths -setup -npaths 20 -nworst 1 -neighbor_path_num 5 -extra_info all -file [file join $output_dir neighbor_paths.rpt]] \
+    report_neighbor_paths [list report_neighbor_paths -setup -npaths $diagnostic_path_count -nworst 3 -neighbor_path_num 5 -extra_info all -file [file join $output_dir neighbor_paths.rpt]] \
     report_register_spread [list report_register_spread -num_registers 100 -min_sinks 10 -sink_type endpoint -spread_type tension -file [file join $output_dir register_spread.rpt]] \
     report_net_delay [list report_net_delay -nworst 100 -file [file join $output_dir net_delay.rpt]] \
     report_route_net_of_interest [list report_route_net_of_interest -num_nets 100 -file [file join $output_dir route_nets_of_interest.rpt]] \

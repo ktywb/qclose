@@ -3,6 +3,24 @@
 `qclose` collects structured Quartus timing and compilation-report data, builds
 compact Markdown/JSON summaries, and compares timing-closure runs.
 
+The schema-v2 analyzer also:
+
+- checks that detailed point delays reproduce Quartus `data_delay` and slack;
+- separates cell, local-interconnect, and fabric-routing delay;
+- normalizes useful Report DB panels and text-only physical reports behind one
+  record schema;
+- correlates critical paths with high-fanout, register-spread, routing-pressure,
+  and retiming evidence using confidence-ranked node identities;
+- emits evidence-backed issue records and compares issue, delay-character,
+  resource, routing, Fmax, Fast Forward, and physical metrics between runs.
+
+The original `.rpt` files remain the source of truth when Quartus exposes no
+equivalent collection or Report DB table.  Their parsed rows carry a `source`
+field so downstream tools can distinguish Tcl objects, Report DB JSON, and text
+reports.  `entered-sample`/`left-sample` in comparisons refer only to the bounded
+path sample and must not be read as proof that a problem globally appeared or
+disappeared.
+
 It consists of:
 
 - `quartus_timing_analyze.py`: CLI orchestration, normalization, summaries, and
