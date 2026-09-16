@@ -1,0 +1,58 @@
+[
+  {
+    "name": "same hierarchy different fitted cell",
+    "record": "vpart|engine|vp|pes_0|writeComb|add_0~41|datad",
+    "path_node": "vpart|engine|vp|pes_0|writeComb|add_0~46|cout",
+    "hierarchy": "pes_0|writeComb|add_0~41",
+    "expected_method": "same-hierarchy",
+    "expected_confidence": 0.2
+  },
+  {
+    "name": "similar generated name 16 versus 56",
+    "record": "vpart|engine|vp|pes_0|writeComb|add_0~16|cin",
+    "path_node": "vpart|engine|vp|pes_0|writeComb|add_0~56|cin",
+    "hierarchy": "",
+    "expected_method": "none",
+    "expected_confidence": 0.0
+  },
+  {
+    "name": "similar fitter integer remains distinct",
+    "record": "vpart|engine|vp|pes_0|writeComb|i13381~9|combout",
+    "path_node": "vpart|engine|vp|pes_0|writeComb|i13381~0|combout",
+    "hierarchy": "",
+    "expected_method": "none",
+    "expected_confidence": 0.0
+  },
+  {
+    "name": "different PE replica remains distinct",
+    "record": "vpart|engine|vp|pes_0|writeComb|issueHash[0]~9|combout",
+    "path_node": "vpart|engine|vp|pes_8|writeComb|issueHash[0]~9|combout",
+    "hierarchy": "",
+    "expected_method": "none",
+    "expected_confidence": 0.0
+  },
+  {
+    "name": "different bus lane is normalized evidence only",
+    "record": "vpart|engine|vp|pes_5|writeComb|procDataReg[280]~ENA_dff",
+    "path_node": "vpart|engine|vp|pes_5|writeComb|procDataReg[287]~ENA_dff",
+    "hierarchy": "",
+    "expected_method": "normalized-node",
+    "expected_confidence": 0.65
+  },
+  {
+    "name": "validated fitter replica is base evidence",
+    "record": "vpart|engine|vp|state[1]~RTM",
+    "path_node": "vpart|engine|vp|state[1]~RTM_Duplicate_32",
+    "hierarchy": "",
+    "expected_method": "base-node",
+    "expected_confidence": 0.85
+  },
+  {
+    "name": "unrelated high fanout node does not correlate",
+    "record": "vpart|engine|vp|pes_8|writeComb|issueHash[0]~9~cw_ml_mlab/lab_lut6outb[1]",
+    "path_node": "vpart|engine|vp|pes_5|writeComb|opTypeReg[0]~0~cw_la_lab/lab_lut6outb[3]",
+    "hierarchy": "",
+    "expected_method": "none",
+    "expected_confidence": 0.0
+  }
+]

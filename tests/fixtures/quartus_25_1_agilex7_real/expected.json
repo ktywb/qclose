@@ -42,14 +42,16 @@
       "selection_method": "common-exact-node",
       "sampled_paths": 5,
       "primary_diagnosis": "MIXED_DELAY",
-      "required_contributors": ["HIGH_FANOUT", "MEMORY_ENDPOINT"]
+      "required_contributors": ["HIGH_FANOUT"],
+      "required_context": ["MEMORY_ENDPOINT"]
     },
     {
       "root_node": "vpart|engine|vp|pes_0|writeComb|add_0~56|cin",
       "selection_method": "bottleneck-node",
       "sampled_paths": 5,
       "primary_diagnosis": "ROUTING_LIMITED",
-      "required_contributors": ["HIGH_FANOUT", "PHYSICAL_SPREAD", "MEMORY_ENDPOINT"]
+      "required_contributors": ["HIGH_FANOUT", "PHYSICAL_SPREAD"],
+      "required_context": ["MEMORY_ENDPOINT"]
     }
   ],
   "normalization": {

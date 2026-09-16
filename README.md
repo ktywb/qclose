@@ -3,7 +3,7 @@
 `qclose` collects structured Quartus timing and compilation-report data, builds
 compact Markdown/JSON summaries, and compares timing-closure runs.
 
-The schema-v3 analyzer also:
+The schema-v4 analyzer also:
 
 - checks that detailed point delays reproduce Quartus `data_delay` and slack;
 - separates cell, local-interconnect, and fabric-routing delay;
@@ -11,10 +11,17 @@ The schema-v3 analyzer also:
   record schema;
 - correlates critical paths with high-fanout, register-spread, routing-pressure,
   and retiming evidence using confidence-ranked node identities;
-- clusters issues by a repeated Quartus bottleneck/common path node, falling
-  back to endpoint identity only when no reliable common node exists;
-- reports separate timing-consistency, Quartus-breakdown, evidence-match, and
-  root-grouping confidence components;
+- clusters issues around a conservative `issue_anchor`, retains alternate
+  `secondary_anchors`, and labels only well-supported bottleneck anchors as a
+  `root_cause_candidate`;
+- reports separate timing-consistency, Quartus-breakdown, anchor-confidence,
+  evidence-strength, and evidence-coverage components;
+- emits a `health` preflight for constraints, CDC, Design Assistant, and data
+  quality; serious constraint findings suppress RTL advice;
+- normalizes existing Design Assistant, Fast Forward, and retiming guidance
+  without launching those Quartus flows;
+- generates deterministic `advice.json` and `advice.md`, with every action
+  labeled as Quartus ground truth, deterministic derived, or heuristic;
 - emits evidence-backed issue records and compares issue, delay-character,
   resource, routing, Fmax, Fast Forward, and physical metrics between runs.
 
@@ -64,6 +71,28 @@ Regenerate one run's summary:
 python3 quartus_timing_analyze.py summarize logs/timing-analysis/<run>
 ```
 
+Generate deterministic advice from an existing summary:
+
+```sh
+python3 quartus_timing_analyze.py advise logs/timing-analysis/<run>
+```
+
+Analyze an already-existing intermediate Quartus database without running
+Fitter or compilation:
+
+```sh
+python3 quartus_timing_analyze.py collect \
+  --project vpart_pcie \
+  --project-root /path/to/project \
+  --quartus-bin /path/to/quartus/bin \
+  --snapshot routed
+```
+
+Quartus Prime Pro 25.1 exposes `planned`, `placed`, `routed`, `retimed`, and
+`final` snapshots. qclose does not mix final Compilation Report DB panels into
+an intermediate-snapshot timing run. Stage-dependent diagnostics are reported
+as `unavailable-for-stage`, not as clean/empty.
+
 Compare the newest two collections:
 
 ```sh
@@ -78,3 +107,23 @@ Run all synthetic and real-data regression tests:
 ```sh
 python3 -m unittest discover -s tests -v
 ```
+
+## Timing Closure Workflow
+
+1. Collect the earliest existing snapshot that can answer the current
+   question. Use `planned` for coarse logic/constraint checks, `placed` for
+   physical spread, `routed` for route-delay evidence, `retimed` for retiming
+   limits, and `final` for sign-off comparison and Report DB correlation.
+2. Read `health` first. A `blocked` result means constraint or data-quality
+   findings must be resolved or explicitly waived before acting on RTL advice.
+3. Use `summary.json` for evidence and `advice.md` for the bounded action list.
+   `issue_anchor` is a grouping/diagnostic anchor, not automatically a proven
+   root cause.
+4. Validate an RTL change at the `validation_stage` attached to its action.
+   qclose intentionally does not invent compile commands or mutate RTL, QSF,
+   or SDC files.
+5. Compare runs only after confirming their source fingerprints, snapshot, and
+   sampling settings. `entered-sample` and `left-sample` still describe the
+   bounded sample, not the whole design.
+6. Consider DSE II only when constraints and RTL are stable, timing is close,
+   and no high-confidence structural issue remains.

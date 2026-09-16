@@ -107,6 +107,51 @@ def main() -> None:
         ][:10]
     write_json(destination / "normalization_samples.json", normalization_samples)
 
+    # Preserve real false-positive controls alongside positive evidence.  The
+    # selected names must all occur in the source run; extraction fails rather
+    # than silently replacing them with synthetic examples.
+    all_nodes = {
+        str(point.get("node", ""))
+        for path in detailed
+        for point in path.get("points", [])
+        if point.get("node")
+    }
+    bottleneck_columns, bottleneck_rows = QTA.bottleneck_table(source / "bottlenecks.rpt", set())
+    if "Node" in bottleneck_columns:
+        node_index = bottleneck_columns.index("Node")
+        all_nodes.update(row[node_index] for row in bottleneck_rows if node_index < len(row))
+    all_nodes.update(normalization_samples)
+
+    def require(pattern: str) -> str:
+        match = next((node for node in sorted(all_nodes) if re.search(pattern, node)), None)
+        if not match:
+            raise RuntimeError(f"real negative-control node missing: {pattern}")
+        return match
+
+    add16 = require(r"pes_0\|writeComb\|add_0~16\|cin$")
+    add56 = require(r"pes_0\|writeComb\|add_0~56\|cin$")
+    lane280 = require(r"procDataReg\[280\]~ENA_dff$")
+    lane287 = require(r"procDataReg\[287\]~ENA_dff$")
+    negative_controls = [
+        {
+            "name": "similar generated name 16 versus 56",
+            "record": add16,
+            "path_node": add56,
+            "hierarchy": "",
+            "expected_method": "none",
+            "expected_confidence": 0.0,
+        },
+        {
+            "name": "different bus lane is normalized evidence only",
+            "record": lane280,
+            "path_node": lane287,
+            "hierarchy": "",
+            "expected_method": "normalized-node",
+            "expected_confidence": 0.65,
+        },
+    ]
+    write_json(destination / "negative_controls.json", negative_controls)
+
     timing_metadata = QTA.read_json(source / "timing_metadata.json", {})
     write_json(
         destination / "timing_metadata.json",

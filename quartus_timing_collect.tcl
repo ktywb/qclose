@@ -1,7 +1,7 @@
 # Collect machine-readable timing data from an already routed Quartus snapshot.
 #
 # Positional arguments:
-#   project revision output_dir paths_per_clock detailed_paths
+#   project revision output_dir paths_per_clock detailed_paths snapshot
 
 package require Tcl 8.5
 
@@ -155,16 +155,19 @@ proc record_warning {channel operation message} {
     post_message -type warning "Timing collector skipped $operation: $first_line"
 }
 
-if {$argc != 5} {
-    fail "Usage: quartus_sta -t quartus_timing_collect.tcl <project> <revision> <output_dir> <paths_per_clock> <detailed_paths>"
+if {$argc != 6} {
+    fail "Usage: quartus_sta -t quartus_timing_collect.tcl <project> <revision> <output_dir> <paths_per_clock> <detailed_paths> <snapshot>"
 }
 
-lassign $argv project_name revision_name output_dir paths_per_clock detailed_path_count
+lassign $argv project_name revision_name output_dir paths_per_clock detailed_path_count snapshot_name
 if {![string is integer -strict $paths_per_clock] || $paths_per_clock < 1} {
     fail "paths_per_clock must be a positive integer"
 }
 if {![string is integer -strict $detailed_path_count] || $detailed_path_count < 0} {
     fail "detailed_paths must be a non-negative integer"
+}
+if {$snapshot_name ni {planned placed routed retimed final}} {
+    fail "snapshot must be one of: planned, placed, routed, retimed, final"
 }
 
 file mkdir $output_dir
@@ -172,7 +175,7 @@ set output_dir [file normalize $output_dir]
 set warning_channel [open [file join $output_dir collector_warnings.txt] w]
 
 project_open -revision $revision_name $project_name
-create_timing_netlist -snapshot final
+create_timing_netlist -snapshot $snapshot_name
 read_sdc
 update_timing_netlist
 
@@ -180,7 +183,7 @@ set metadata_fields [list \
     [string_field project $project_name] \
     [string_field revision $revision_name] \
     [string_field quartus_version $::quartus(version)] \
-    [string_field snapshot final] \
+    [string_field snapshot $snapshot_name] \
     [number_field paths_per_clock $paths_per_clock] \
     [number_field detailed_paths $detailed_path_count]]
 set metadata_channel [open [file join $output_dir timing_metadata.json] w]
@@ -228,9 +231,12 @@ close $clocks_channel
 
 set detailed_channel [open [file join $output_dir detailed_paths.jsonl] w]
 if {$detailed_path_count > 0} {
-    if {[catch {
-        get_timing_paths -setup -npaths $detailed_path_count -nworst 3 -detail full_path -show_routing
-    } detailed_paths]} {
+    if {$snapshot_name in {routed retimed final}} {
+        set detailed_command [list get_timing_paths -setup -npaths $detailed_path_count -nworst 3 -detail full_path -show_routing]
+    } else {
+        set detailed_command [list get_timing_paths -setup -npaths $detailed_path_count -nworst 3 -detail full_path]
+    }
+    if {[catch {uplevel #0 $detailed_command} detailed_paths]} {
         record_warning $warning_channel get_detailed_timing_paths $detailed_paths
     } else {
         foreach_in_collection path $detailed_paths {
@@ -263,17 +269,28 @@ if {[catch {
     }
 }
 
-foreach {operation command} [list \
+set diagnostic_commands [list \
     check_timing [list check_timing -file [file join $output_dir check_timing.rpt]] \
     report_cdc_viewer [list report_cdc_viewer -summary -file [file join $output_dir cdc_summary.rpt]] \
     report_asynch_cdc [list report_asynch_cdc -detail summary -nentries 200 -file [file join $output_dir asynch_cdc_summary.rpt]] \
     report_logic_depth [list report_logic_depth -setup -detail histogram -npaths 500 -nworst 1 -file [file join $output_dir logic_depth.rpt]] \
-    report_neighbor_paths [list report_neighbor_paths -setup -npaths $diagnostic_path_count -nworst 3 -neighbor_path_num 5 -extra_info all -file [file join $output_dir neighbor_paths.rpt]] \
-    report_register_spread [list report_register_spread -num_registers 100 -min_sinks 10 -sink_type endpoint -spread_type tension -file [file join $output_dir register_spread.rpt]] \
-    report_net_delay [list report_net_delay -nworst 100 -file [file join $output_dir net_delay.rpt]] \
-    report_route_net_of_interest [list report_route_net_of_interest -num_nets 100 -file [file join $output_dir route_nets_of_interest.rpt]] \
-    report_pipelining_info [list report_pipelining_info -max_rows 200 -file [file join $output_dir pipelining_info.rpt]] \
-    report_retiming_restrictions [list report_retiming_restrictions -file [file join $output_dir retiming_restrictions.rpt]]] {
+    report_neighbor_paths [list report_neighbor_paths -setup -npaths $diagnostic_path_count -nworst 3 -neighbor_path_num 5 -extra_info all -file [file join $output_dir neighbor_paths.rpt]]]
+set snapshot_rank [lsearch -exact {planned placed routed retimed final} $snapshot_name]
+if {$snapshot_rank >= 1} {
+    lappend diagnostic_commands \
+        report_register_spread [list report_register_spread -num_registers 100 -min_sinks 10 -sink_type endpoint -spread_type tension -file [file join $output_dir register_spread.rpt]]
+}
+if {$snapshot_rank >= 2} {
+    lappend diagnostic_commands \
+        report_net_delay [list report_net_delay -nworst 100 -file [file join $output_dir net_delay.rpt]] \
+        report_route_net_of_interest [list report_route_net_of_interest -num_nets 100 -file [file join $output_dir route_nets_of_interest.rpt]]
+}
+if {$snapshot_rank >= 3} {
+    lappend diagnostic_commands \
+        report_pipelining_info [list report_pipelining_info -max_rows 200 -file [file join $output_dir pipelining_info.rpt]] \
+        report_retiming_restrictions [list report_retiming_restrictions -file [file join $output_dir retiming_restrictions.rpt]]
+}
+foreach {operation command} $diagnostic_commands {
     if {[catch {uplevel #0 $command} message]} {
         record_warning $warning_channel $operation $message
     }

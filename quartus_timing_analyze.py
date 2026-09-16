@@ -24,9 +24,36 @@ from typing import Any, Iterable
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_ROOT = Path("logs/timing-analysis")
 SOURCE_SUFFIXES = {".scala", ".v", ".sv", ".sdc", ".qsf", ".tcl"}
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DELAY_TOLERANCE_NS = 0.002
 ISSUE_WNS_CHANGE_NS = 0.005
+QUARTUS_SNAPSHOTS = ("planned", "placed", "routed", "retimed", "final")
+
+
+def snapshot_capabilities(snapshot: str) -> dict[str, Any]:
+    """Conservative stage matrix; availability is confirmed by each collector run."""
+    rank = {name: index for index, name in enumerate(QUARTUS_SNAPSHOTS)}.get(snapshot, 4)
+    return {
+        "snapshot": snapshot,
+        "timing_paths": {"status": "supported", "minimum_stage": "planned"},
+        "routing_detail": {
+            "status": "supported" if rank >= 2 else "unavailable-for-stage",
+            "minimum_stage": "routed",
+        },
+        "register_spread": {
+            "status": "supported" if rank >= 1 else "unavailable-for-stage",
+            "minimum_stage": "placed",
+        },
+        "retiming": {
+            "status": "supported" if rank >= 3 else "unavailable-for-stage",
+            "minimum_stage": "retimed",
+        },
+        "compilation_report_db": {
+            "status": "supported" if snapshot == "final" else "not-collected-for-intermediate-stage",
+            "minimum_stage": "final",
+        },
+        "basis": "Quartus Prime Pro 25.1 --help=snapshot plus conservative report-stage requirements",
+    }
 
 
 def read_json(path: Path, default: Any = None) -> Any:
@@ -723,6 +750,211 @@ def selected_panel_summary(panels: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def normalized_quartus_guidance(reports: dict[str, Any]) -> dict[str, Any]:
+    """Normalize only Quartus guidance already present in Report DB panels."""
+    design_panels = reports.get("design_assistant", [])
+    design_rules = []
+    for panel in design_panels:
+        columns = panel.get("columns", [])
+        for row in panel.get("rows", []):
+            fields = row_as_fields(columns, row)
+            violation_count = int(numeric(first_field(fields, ("Violations", "Violation Count"))) or 0)
+            rule_text = first_field(fields, ("Rule", "Rule Name"))
+            rule_match = re.match(r"([^ ]+)\s+-\s+(.+)", rule_text)
+            design_rules.append(
+                {
+                    "rule": rule_match.group(1) if rule_match else rule_text,
+                    "severity": first_field(fields, ("Severity",)),
+                    "stage": "elaborated" if "Elaborated" in panel.get("name", "") else "unknown",
+                    "category": first_field(fields, ("Tags", "Category")),
+                    "description": rule_match.group(2) if rule_match else rule_text,
+                    "recommendation": first_field(fields, ("Recommendation",)),
+                    "node": first_field(fields, ("Node", "Node Name", "Entity")),
+                    "path": first_field(fields, ("Path", "Location")),
+                    "source": f"report_db:{panel.get('name', 'Design Assistant')}",
+                    "violations": violation_count,
+                    "waived": int(numeric(first_field(fields, ("Waived",))) or 0),
+                }
+            )
+    if design_panels:
+        design_status = "violations" if any(item["violations"] > 0 for item in design_rules) else "pass"
+    else:
+        design_status = "unavailable-or-not-run"
+
+    fast_forward = []
+    for panel in reports.get("fast_forward", []):
+        columns = panel.get("columns", [])
+        domain = panel.get("name", "").rsplit("Clock Domain ", 1)[-1]
+        for row in panel.get("rows", []):
+            fields = row_as_fields(columns, row)
+            fast_forward.append(
+                {
+                    "clock_domain": domain,
+                    "step": first_field(fields, ("Step",)),
+                    "optimization": first_field(fields, ("Fast Forward Optimizations Analyzed",)),
+                    "estimated_fmax": first_field(fields, ("Estimated Fmax",)),
+                    "slack": first_field(fields, ("Slack",)),
+                    "relationship": first_field(fields, ("Relationship",)),
+                    "source": f"report_db:{panel.get('name', 'Fast Forward Summary')}",
+                }
+            )
+
+    retiming = []
+    for panel in reports.get("retiming_limits", []):
+        columns = panel.get("columns", [])
+        for row in panel.get("rows", []):
+            fields = row_as_fields(columns, row)
+            retiming.append(
+                {
+                    "clock_transfer": first_field(fields, ("Clock Transfer",)),
+                    "limiting_reason": first_field(fields, ("Limiting Reason",)),
+                    "recommendation": first_field(fields, ("Recommendation",)),
+                    "source": f"report_db:{panel.get('name', 'Retiming Limit Summary')}",
+                }
+            )
+    return {
+        "design_assistant": {
+            "status": design_status,
+            "rules_checked": len(design_rules),
+            "violations": [item for item in design_rules if item["violations"] > 0],
+            "source": "report_db" if design_panels else None,
+        },
+        "fast_forward": {
+            "status": "available" if reports.get("fast_forward") else "unavailable-or-not-run",
+            "records": fast_forward,
+        },
+        "retiming_limits": {
+            "status": "available" if reports.get("retiming_limits") else "unavailable-or-not-run",
+            "records": retiming,
+        },
+    }
+
+
+def build_health(
+    reports: dict[str, Any],
+    check_columns: list[str],
+    check_rows: list[list[str]],
+    cdc_columns: list[str],
+    cdc_rows: list[list[str]],
+    metric_aggregate: dict[str, Any],
+    parser_status: dict[str, Any],
+    collector_warnings: list[str],
+    sta_warning_count: int,
+    guidance: dict[str, Any],
+) -> dict[str, Any]:
+    reasons: list[str] = []
+    check_issues = {}
+    for row in check_rows:
+        fields = row_as_fields(check_columns, row)
+        name = first_field(fields, ("Check",))
+        count = int(numeric(first_field(fields, ("Number of Issues Found",))) or 0)
+        if name and count:
+            check_issues[name] = count
+
+    unconstrained = []
+    for panel in reports.get("unconstrained", []):
+        for row in panel.get("rows", []):
+            fields = row_as_fields(panel.get("columns", []), row)
+            prop = first_field(fields, ("Property",))
+            if prop and sum(int(numeric(fields.get(key)) or 0) for key in ("Setup", "Hold")):
+                unconstrained.append(fields)
+            status = first_field(fields, ("Status",))
+            if status and status.lower() != "constrained":
+                unconstrained.append(fields)
+
+    unsafe_transfers_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for panel in reports.get("clock_transfers", []):
+        for row in panel.get("rows", []):
+            fields = row_as_fields(panel.get("columns", []), row)
+            classification = first_field(fields, ("Clock Pair Classification",))
+            if "unsafe" in classification.lower():
+                key = (
+                    first_field(fields, ("From Clock",)),
+                    first_field(fields, ("To Clock",)),
+                    classification,
+                )
+                unsafe_transfers_by_key[key] = fields
+    unsafe_transfers = list(unsafe_transfers_by_key.values())
+
+    constraints_status = "pass"
+    if check_issues or unconstrained or unsafe_transfers:
+        constraints_status = "blocked"
+        reasons.append(
+            f"timing constraints require review: check_timing={sum(check_issues.values())}, "
+            f"unconstrained={len(unconstrained)}, unsafe_clock_transfers={len(unsafe_transfers)}"
+        )
+    elif not check_columns or not reports.get("unconstrained"):
+        constraints_status = "warning"
+        reasons.append("constraint health is incomplete; missing check_timing or unconstrained-path data")
+
+    cdc_findings = []
+    benign = ("compliant", "false path", "inactive")
+    for row in cdc_rows:
+        fields = row_as_fields(cdc_columns, row)
+        name = first_field(fields, ("CDC Type",))
+        count = int(numeric(first_field(fields, ("CDC Count",))) or 0)
+        if count and not any(token in name.lower() for token in benign):
+            cdc_findings.append({"type": name, "count": count})
+    cdc_status = "warning" if cdc_findings else "pass" if cdc_columns else "unavailable"
+    if cdc_findings:
+        reasons.append(f"CDC report contains {sum(item['count'] for item in cdc_findings)} non-compliant/unreviewed transfers")
+    elif not cdc_columns:
+        reasons.append("CDC report is unavailable; absence is not treated as clean")
+
+    design = guidance.get("design_assistant", {})
+    design_status = design.get("status", "unavailable-or-not-run")
+    if design_status == "unavailable-or-not-run":
+        reasons.append("Design Assistant was not run or its Report DB panel is unavailable")
+    elif design_status == "violations":
+        reasons.append(f"Design Assistant reports {len(design.get('violations', []))} violated rules")
+
+    failed_parsers = [
+        name
+        for name, status in parser_status.items()
+        if status.get("status") in ("warning", "unavailable")
+    ]
+    breakdown_failures = int(metric_aggregate.get("quartus_breakdown_failures", 0))
+    consistency_failures = int(metric_aggregate.get("consistency_failures", 0))
+    data_status = "pass"
+    if breakdown_failures or consistency_failures:
+        data_status = "blocked"
+        reasons.append(
+            f"timing data validation failed: point_sum={consistency_failures}, breakdown={breakdown_failures}"
+        )
+    elif failed_parsers or collector_warnings or sta_warning_count:
+        data_status = "warning"
+        reasons.append(
+            f"collector/parser/STA warnings: "
+            f"{len(collector_warnings) + len(failed_parsers) + sta_warning_count}"
+        )
+
+    overall = "blocked" if "blocked" in (constraints_status, data_status) else "warning" if (
+        "warning" in (constraints_status, cdc_status, data_status)
+        or cdc_status == "unavailable"
+        or design_status in ("violations", "unavailable-or-not-run")
+    ) else "pass"
+    return {
+        "status": overall,
+        "constraints": {
+            "status": constraints_status,
+            "check_timing": check_issues,
+            "unconstrained_records": unconstrained,
+            "unsafe_clock_transfers": unsafe_transfers,
+        },
+        "cdc": {"status": cdc_status, "findings": cdc_findings},
+        "design_assistant": design,
+        "data_quality": {
+            "status": data_status,
+            "point_sum_failures": consistency_failures,
+            "breakdown_failures": breakdown_failures,
+            "parser_warnings": failed_parsers,
+            "collector_warnings": len(collector_warnings),
+            "sta_warning_count": sta_warning_count,
+        },
+        "reasons": reasons,
+    }
+
+
 def row_as_fields(columns: list[str], row: list[Any]) -> dict[str, Any]:
     return {column: row[index] if index < len(row) else "" for index, column in enumerate(columns)}
 
@@ -882,6 +1114,107 @@ def compact_evidence(record: dict[str, Any], confidence: float, method: str) -> 
     }
 
 
+def record_path_matches(record: dict[str, Any], entries: list[dict[str, Any]]) -> list[tuple[int, float, str]]:
+    """Return sampled paths reached by node-level evidence.
+
+    A hierarchy-only match is deliberately excluded: it is useful context but
+    does not prove that the report record describes the sampled timing cone.
+    """
+    matches = []
+    for index, entry in enumerate(entries):
+        identities = [node["identity"] for node in entry["nodes"]]
+        confidence, method = node_match_confidence(record, identities, "")
+        if confidence >= 0.60:
+            matches.append((index, confidence, method))
+    return matches
+
+
+def issue_secondary_anchors(
+    entries: list[dict[str, Any]], structured: dict[str, Any], primary: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Keep credible alternate shared nodes instead of discarding them."""
+    candidates: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in structured.get("bottlenecks", {}).get("records", []):
+        matches = record_path_matches(record, entries)
+        if len(matches) < 2:
+            continue
+        identity = record.get("identity", {})
+        key = ("bottleneck-node", str(identity.get("base") or record.get("node", "")))
+        candidates[key] = {
+            "node": record.get("node", ""),
+            "identity": identity,
+            "selection_method": "bottleneck-node",
+            "source": record.get("source"),
+            "sampled_path_count": len(matches),
+            "match_confidence": min(item[1] for item in matches),
+            "fields": record.get("fields", {}),
+        }
+    common: dict[tuple[str, str], dict[str, Any]] = {}
+    for index, entry in enumerate(entries):
+        for node in entry["nodes"]:
+            for kind, strength in (("exact", 1.0), ("base", 0.85), ("normalized", 0.65)):
+                value = node["identity"].get(kind, "")
+                if len(value) < 12:
+                    continue
+                item = common.setdefault(
+                    (kind, value),
+                    {"members": set(), "node": value, "identity": node_identity(value), "strength": strength},
+                )
+                item["members"].add(index)
+    for (kind, value), item in common.items():
+        if len(item["members"]) < 2:
+            continue
+        method = f"common-{kind}-node"
+        candidates[(method, value)] = {
+            "node": value,
+            "identity": item["identity"],
+            "selection_method": method,
+            "source": "timing_api:detailed_path_points",
+            "sampled_path_count": len(item["members"]),
+            "match_confidence": item["strength"],
+            "fields": {},
+        }
+    def canonical_cell(item: dict[str, Any]) -> str:
+        name = str(item.get("node", ""))
+        return normalize_node_name(re.sub(r"\|(?:q|d|clk)$", "", base_node_name(name), flags=re.I))
+
+    primary_identity = primary.get("identity", {})
+    primary_names = {
+        str(primary_identity.get(kind, ""))
+        for kind in ("exact", "base", "normalized")
+        if primary_identity.get(kind)
+    }
+    values = []
+    for item in candidates.values():
+        identity = item.get("identity", {})
+        names = {
+            str(identity.get(kind, ""))
+            for kind in ("exact", "base", "normalized")
+            if identity.get(kind)
+        }
+        if primary_names.isdisjoint(names):
+            values.append(item)
+    values.sort(
+        key=lambda item: (
+            item["sampled_path_count"],
+            item["selection_method"] == "bottleneck-node",
+            item["match_confidence"],
+        ),
+        reverse=True,
+    )
+    unique = []
+    seen_cells = {canonical_cell(primary)}
+    for item in values:
+        cell = canonical_cell(item)
+        if not cell or cell in seen_cells:
+            continue
+        seen_cells.add(cell)
+        unique.append(item)
+        if len(unique) == 10:
+            break
+    return unique
+
+
 def issue_recommendations(diagnoses: list[str]) -> list[str]:
     recommendations = []
     found = set(diagnoses)
@@ -893,8 +1226,6 @@ def issue_recommendations(diagnoses: list[str]) -> list[str]:
         recommendations.append("Reduce producer-to-consumer spread; keep state/control close to its physical consumers.")
     if "ROUTING_PRESSURE" in found:
         recommendations.append("Inspect the matched high-wire/route-effort nets before changing unrelated logic depth.")
-    if "MEMORY_ENDPOINT" in found:
-        recommendations.append("Check RAM output, bypass, and same-address forwarding boundaries before adding a read pipeline.")
     if "RETIMING_RESTRICTED" in found or "CLOCK_DOMAIN_RETIMING_LIMIT" in found:
         recommendations.append("Inspect the matched retiming restriction or RTL loop; automatic retiming may not cross it.")
     return recommendations
@@ -1103,10 +1434,10 @@ def build_issues(
     issues = []
     for cluster in cluster_issue_entries(detailed_paths, detailed_metrics, structured):
         entries = cluster["entries"]
-        root = cluster["root"]
+        anchor = cluster["root"]
         metrics_list = [entry["metrics"] for entry in entries]
         aggregate = path_aggregate(metrics_list)
-        hierarchy = root.get("identity", {}).get("hierarchy") or hierarchy_group(root.get("node", ""))
+        hierarchy = anchor.get("identity", {}).get("hierarchy") or hierarchy_group(anchor.get("node", ""))
         path_nodes = {
             node["identity"]["exact"]: node["identity"]
             for entry in entries
@@ -1123,15 +1454,26 @@ def build_issues(
             "highest_wire_count",
             "peak_wire_details",
             "retiming_restrictions",
+            "pipelining",
+            "design_assistant",
         ):
             node_matches = []
             context_matches = []
             for record in structured.get(category, {}).get("records", []):
+                path_matches = record_path_matches(record, entries)
+                if path_matches:
+                    confidence = min(match[1] for match in path_matches)
+                    methods = Counter(match[2] for match in path_matches)
+                    method = next(iter(methods)) if len(methods) == 1 else "mixed-node-match"
+                    item = compact_evidence(record, confidence, method)
+                    item["match_methods"] = dict(methods)
+                    item["sampled_path_count"] = len(path_matches)
+                    item["coverage"] = len(path_matches) / len(entries)
+                    node_matches.append(item)
+                    continue
                 confidence, method = node_match_confidence(record, list(path_nodes.values()), hierarchy)
                 item = compact_evidence(record, confidence, method)
-                if confidence >= 0.60:
-                    node_matches.append(item)
-                elif confidence >= 0.20:
+                if confidence >= 0.20:
                     context_matches.append(item)
             node_matches.sort(key=lambda item: item["match_confidence"], reverse=True)
             if node_matches:
@@ -1155,11 +1497,15 @@ def build_issues(
                     "node": node,
                     "match_confidence": 1.0,
                     "match_method": "exact-node",
+                    "sampled_path_count": 0,
+                    "coverage": 0.0,
                     "fields": {"Max Fanout": fanout, "Sampled Failing Paths": 0},
                 },
             )
             item["fields"]["Max Fanout"] = max(item["fields"]["Max Fanout"], fanout)
             item["fields"]["Sampled Failing Paths"] += 1
+            item["sampled_path_count"] += 1
+            item["coverage"] = item["sampled_path_count"] / len(entries)
         if fanout_nodes:
             evidence["path_point_fanout"] = sorted(
                 fanout_nodes.values(), key=lambda item: item["fields"]["Max Fanout"], reverse=True
@@ -1204,20 +1550,15 @@ def build_issues(
             contributors.append("RETIMING_RESTRICTED")
         elif contextual_evidence.get("retiming_limits"):
             contributors.append("CLOCK_DOMAIN_RETIMING_LIMIT")
-        if any(
-            "Memory_rtl" in str(entry["path"].get("from", ""))
-            or "Memory_rtl" in str(entry["path"].get("to", ""))
-            for entry in entries
-        ):
-            contributors.append("MEMORY_ENDPOINT")
-
+        if has_node_evidence("design_assistant"):
+            contributors.append("DESIGN_ASSISTANT_VIOLATION")
         uncertainties = []
         if heterogeneous:
             uncertainties.append("conflicting delay character inside one root cluster")
-        if root["selection_method"] == "common-normalized-node":
-            uncertainties.append("root relies on bus-index normalization")
-        if root["selection_method"].endswith("fallback"):
-            uncertainties.append(f"root uses {root['selection_method']}")
+        if anchor["selection_method"] == "common-normalized-node":
+            uncertainties.append("issue anchor relies on bus-index normalization")
+        if anchor["selection_method"].endswith("fallback"):
+            uncertainties.append(f"issue anchor uses {anchor['selection_method']}")
         consistency_statuses = [metrics.get("consistency", {}).get("status", "fail") for metrics in metrics_list]
         breakdown_statuses = [
             metrics.get("quartus_breakdown_validation", {}).get("status", "unavailable") for metrics in metrics_list
@@ -1231,12 +1572,31 @@ def build_issues(
 
         timing_confidence = component_confidence(consistency_statuses, {"pass": 1.0, "warning": 0.60, "fail": 0.0})
         breakdown_confidence = component_confidence(breakdown_statuses, {"pass": 1.0, "unavailable": 0.60, "fail": 0.0})
-        evidence_confidence = max(
-            [numeric(root.get("match_confidence")) or 0.0]
-            + [numeric(item.get("match_confidence")) or 0.0 for values in evidence.values() for item in values]
+        # Anchor confidence is a separate component. Evidence coverage measures
+        # independent diagnosis evidence, not the node used to form the issue.
+        per_path_evidence = [0.0] * len(entries)
+        for values in evidence.values():
+            for item in values:
+                record = {
+                    "node": item.get("node", ""),
+                    "identity": node_identity(str(item.get("node", ""))),
+                }
+                for index, match_confidence, _ in record_path_matches(record, entries):
+                    per_path_evidence[index] = max(per_path_evidence[index], match_confidence)
+        evidence_strength = sum(per_path_evidence) / len(per_path_evidence) if per_path_evidence else 0.0
+        evidence_coverage = (
+            sum(value >= 0.60 for value in per_path_evidence) / len(per_path_evidence)
+            if per_path_evidence
+            else 0.0
         )
-        grouping_confidence = numeric(root.get("grouping_confidence")) or 0.0
-        overall = (timing_confidence + breakdown_confidence + evidence_confidence + grouping_confidence) / 4.0
+        anchor_confidence = numeric(anchor.get("grouping_confidence")) or 0.0
+        overall = (
+            timing_confidence
+            + breakdown_confidence
+            + anchor_confidence
+            + evidence_strength
+            + evidence_coverage
+        ) / 5.0
         if timing_confidence < 0.50:
             overall = min(overall, 0.25)
         elif timing_confidence < 1.0:
@@ -1245,26 +1605,36 @@ def build_issues(
             overall = min(overall, 0.35)
         elif breakdown_confidence < 1.0:
             overall = min(overall, 0.79)
-        if evidence_confidence < 0.60:
+        if evidence_coverage < 0.50:
             overall = min(overall, 0.79)
         if heterogeneous:
             overall = min(overall, 0.54)
-        if root["selection_method"] == "common-normalized-node":
+        if anchor["selection_method"] == "common-normalized-node":
             overall = min(overall, 0.79)
-        if root["selection_method"] == "hierarchy-fallback":
+        if anchor["selection_method"] == "endpoint-fallback":
+            overall = min(overall, 0.69)
+        if anchor["selection_method"] == "hierarchy-fallback":
             overall = min(overall, 0.40)
         confidence = {
             "overall": overall,
             "level": "high" if overall >= 0.80 else "medium" if overall >= 0.55 else "low",
             "timing_consistency": timing_confidence,
             "quartus_breakdown_validation": breakdown_confidence,
-            "evidence_match": evidence_confidence,
-            "root_cause_grouping": grouping_confidence,
+            "anchor_confidence": anchor_confidence,
+            "evidence_strength": evidence_strength,
+            "evidence_coverage": evidence_coverage,
         }
 
-        identity_kind = "normalized" if "normalized" in root["selection_method"] else "base"
-        stable_root = root.get("identity", {}).get(identity_kind) or root.get("node", "")
-        issue_key = f"{root['selection_method']}:{stable_root}"
+        identity_kind = "normalized" if "normalized" in anchor["selection_method"] else "base"
+        stable_anchor = anchor.get("identity", {}).get(identity_kind) or anchor.get("node", "")
+        issue_key = f"{anchor['selection_method']}:{stable_anchor}"
+        context = []
+        if any(
+            "Memory_rtl" in str(entry["path"].get("from", ""))
+            or "Memory_rtl" in str(entry["path"].get("to", ""))
+            for entry in entries
+        ):
+            context.append("MEMORY_ENDPOINT")
         diagnoses = [primary_diagnosis, *contributors]
         worst_entry = min(entries, key=lambda entry: numeric(entry["path"].get("slack_ns")) or 0)
         path_keys = sorted(
@@ -1277,11 +1647,21 @@ def build_issues(
         issues.append(
             {
                 "issue_id": hashlib.sha1(issue_key.encode()).hexdigest()[:12],
-                "root_cause": root,
+                "issue_anchor": anchor,
+                "root_cause_candidate": bool(
+                    anchor.get("selection_method") == "bottleneck-node"
+                    and (numeric(anchor.get("match_confidence")) or 0.0) >= 0.85
+                    and int(anchor.get("sampled_path_count", 0)) >= 2
+                    and timing_confidence == 1.0
+                    and breakdown_confidence == 1.0
+                ),
+                "secondary_anchors": issue_secondary_anchors(entries, structured, anchor),
                 "hierarchy": hierarchy,
                 **aggregate,
                 "primary_diagnosis": primary_diagnosis,
                 "contributors": contributors,
+                "context": context,
+                "clock_domains": sorted(path_clocks),
                 "uncertainties": uncertainties,
                 "diagnoses": diagnoses,
                 "recommendations": issue_recommendations(diagnoses),
@@ -1378,6 +1758,13 @@ def summarize(run_dir: Path) -> dict[str, Any]:
     warning_path = run_dir / "collector_warnings.txt"
     if warning_path.exists():
         warnings = [line for line in warning_path.read_text(encoding="utf-8", errors="replace").splitlines() if line]
+    sta_log = run_dir / "quartus_sta_collect.log"
+    sta_warning_count = 0
+    if sta_log.exists():
+        sta_warning_count = sum(
+            line.startswith("Warning (")
+            for line in sta_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        )
 
     diagnostic_files = {
         "cdc_viewer": "cdc_summary.rpt",
@@ -1398,12 +1785,32 @@ def summarize(run_dir: Path) -> dict[str, Any]:
     }
 
     report_summary = selected_panel_summary(panels)
+    guidance = normalized_quartus_guidance(report_summary)
     relevant_nodes = [
         node["identity"]
         for path in detailed_paths
         for node in logical_path_node_records(path)
     ]
     structured = normalized_diagnostics(run_dir, report_summary, relevant_nodes)
+    design_records = []
+    for violation in guidance.get("design_assistant", {}).get("violations", []):
+        node = str(violation.get("node", ""))
+        record = {
+            "source": violation.get("source"),
+            "node": node,
+            "fields": violation,
+        }
+        if node:
+            record["identity"] = node_identity(node)
+        design_records.append(record)
+    if design_records:
+        structured["design_assistant"] = {
+            "source": "report_db",
+            "columns": [],
+            "record_count": len(design_records),
+            "records": design_records,
+            "truncated": False,
+        }
     if neighbor_records:
         structured["neighbor_paths"] = {
             "source": "rpt:neighbor_paths.rpt",
@@ -1427,9 +1834,25 @@ def summarize(run_dir: Path) -> dict[str, Any]:
         "bottlenecks": "bottlenecks.rpt",
     }
     parser_status = {}
+    snapshot = str(timing_metadata.get("snapshot", "final"))
+    capabilities = snapshot_capabilities(snapshot)
+    stage_requirements = {
+        "register_spread": "register_spread",
+        "route_nets": "routing_detail",
+        "net_delay": "routing_detail",
+        "retiming_restrictions": "retiming",
+        "pipelining": "retiming",
+    }
     for name, filename in parser_files.items():
         report_path = run_dir / filename
-        if not report_path.exists():
+        capability = stage_requirements.get(name)
+        if capability and capabilities[capability]["status"] == "unavailable-for-stage":
+            parser_status[name] = {
+                "status": "unavailable-for-stage",
+                "source": f"rpt:{filename}",
+                "reason": f"requires {capabilities[capability]['minimum_stage']} snapshot",
+            }
+        elif not report_path.exists():
             parser_status[name] = {"status": "unavailable", "source": f"rpt:{filename}", "reason": "file missing"}
         elif name not in structured:
             parser_status[name] = {
@@ -1443,8 +1866,42 @@ def summarize(run_dir: Path) -> dict[str, Any]:
                 "source": structured[name].get("source", f"rpt:{filename}"),
                 "records": len(structured[name].get("records", [])),
             }
+    capabilities["timing_paths"]["observed_status"] = "pass" if paths and detailed_paths else "warning"
+    capabilities["routing_detail"]["observed_status"] = (
+        "pass"
+        if all(parser_status.get(name, {}).get("status") == "pass" for name in ("net_delay", "route_nets"))
+        else capabilities["routing_detail"]["status"]
+    )
+    capabilities["register_spread"]["observed_status"] = (
+        "pass"
+        if parser_status.get("register_spread", {}).get("status") == "pass"
+        else capabilities["register_spread"]["status"]
+    )
+    capabilities["retiming"]["observed_status"] = (
+        "pass"
+        if all(
+            parser_status.get(name, {}).get("status") == "pass"
+            for name in ("pipelining", "retiming_restrictions")
+        )
+        else capabilities["retiming"]["status"]
+    )
+    capabilities["compilation_report_db"]["observed_status"] = (
+        "pass" if panels else capabilities["compilation_report_db"]["status"]
+    )
     issues = build_issues(detailed_paths, detailed_metrics, structured)
     metric_aggregate = path_aggregate(detailed_metrics)
+    health = build_health(
+        report_summary,
+        check_columns,
+        check_rows,
+        async_cdc_columns,
+        async_cdc_rows,
+        metric_aggregate,
+        parser_status,
+        warnings,
+        sta_warning_count,
+        guidance,
+    )
 
     summary = {
         "schema_version": SCHEMA_VERSION,
@@ -1464,6 +1921,9 @@ def summarize(run_dir: Path) -> dict[str, Any]:
             "bottlenecks": {"columns": bottleneck_columns, "rows": bottleneck_rows[:100]},
         },
         "reports": report_summary,
+        "quartus_guidance": guidance,
+        "health": health,
+        "capabilities": capabilities,
         "issues": issues,
         "diagnostics": {
             "check_timing": {"columns": check_columns, "rows": check_rows},
@@ -1484,6 +1944,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
     collection = summary.get("collection", {})
     state = collection.get("compilation_state", {})
     lines = ["# Quartus timing analysis", ""]
+    health = summary.get("health", {})
+    lines.append(f"- Preflight health: **{health.get('status', 'unknown')}**")
     lines.append(f"- Project/revision: `{timing_project(summary)}`")
     lines.append(f"- Collected: `{collection.get('collected_at', 'unknown')}`")
     lines.append(f"- Quartus: `{summary.get('timing_metadata', {}).get('quartus_version', 'unknown')}`")
@@ -1596,7 +2058,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         lines.extend(["", "## Correlated timing issues", ""])
         issue_rows = [
             [
-                issue.get("root_cause", {}).get("node", issue.get("hierarchy")),
+                issue_anchor(issue).get("node", issue.get("hierarchy")),
                 format_number(issue.get("wns_ns")),
                 issue.get("paths", 0),
                 format_number((issue.get("average_route_ratio") or 0) * 100, 1, "%"),
@@ -1612,7 +2074,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
         lines.append(
             markdown_table(
                 [
-                    "Root-cause node",
+                    "Issue anchor",
                     "WNS ns",
                     "Paths",
                     "Route %",
@@ -1631,7 +2093,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
             evidence_counts = ", ".join(
                 f"{name}={len(records)}" for name, records in sorted(issue.get("evidence", {}).items())
             ) or "path metrics only"
-            root = issue.get("root_cause", {})
+            root = issue_anchor(issue)
             lines.append(
                 f"- `{root.get('node', issue.get('hierarchy'))}` "
                 f"({root.get('selection_method', 'legacy-group')}): {evidence_counts}."
@@ -1641,8 +2103,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
                 "  - Confidence: "
                 f"timing={format_number(confidence.get('timing_consistency'), 2)}, "
                 f"breakdown={format_number(confidence.get('quartus_breakdown_validation'), 2)}, "
-                f"evidence={format_number(confidence.get('evidence_match'), 2)}, "
-                f"grouping={format_number(confidence.get('root_cause_grouping'), 2)}."
+                f"anchor={format_number(confidence.get('anchor_confidence'), 2)}, "
+                f"strength={format_number(confidence.get('evidence_strength'), 2)}, "
+                f"coverage={format_number(confidence.get('evidence_coverage'), 2)}."
             )
             if issue.get("uncertainties"):
                 lines.append(f"  - Uncertainties: {', '.join(issue['uncertainties'])}.")
@@ -1736,6 +2199,290 @@ def render_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def advice_action(
+    action: str,
+    why: str,
+    evidence: list[str],
+    source: str,
+    confidence: float,
+    quartus_tool: str,
+    validation_stage: str,
+) -> dict[str, Any]:
+    return {
+        "action": action,
+        "why": why,
+        "evidence": evidence,
+        "source": source,
+        "confidence": confidence,
+        "quartus_tool": quartus_tool,
+        "validation_stage": validation_stage,
+    }
+
+
+def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
+    health = summary.get("health", {})
+    blocked = health.get("status") == "blocked"
+    records = []
+    if blocked:
+        records.append(
+            {
+                "priority": 0,
+                "issue_anchor": {"node": "preflight", "selection_method": "health-gate"},
+                "diagnosis": "TIMING_PREFLIGHT_BLOCKED",
+                "contributors": [],
+                "context": [],
+                "next_actions": [
+                    advice_action(
+                        "Resolve or explicitly waive the reported timing-constraint and clock-transfer findings before using RTL timing advice.",
+                        "Timing optimization is not trustworthy while paths may be missing clocks, unconstrained, or timed across unsafe asynchronous transfers.",
+                        list(health.get("reasons", [])),
+                        "deterministic derived",
+                        1.0,
+                        "Timing Analyzer: Check Timing, Unconstrained Paths, and Clock Transfers",
+                        "final",
+                    )
+                ],
+            }
+        )
+
+    for priority, issue in enumerate(summary.get("issues", []), 1):
+        anchor = issue_anchor(issue)
+        contributors = set(issue.get("contributors", []))
+        diagnosis = str(issue.get("primary_diagnosis", "UNKNOWN"))
+        confidence = numeric(issue.get("confidence", {}).get("overall")) or 0.0
+        evidence = [
+            f"WNS {format_number(issue.get('wns_ns'))} ns across {issue.get('paths', 0)} sampled paths",
+            f"route {format_number((issue.get('average_route_ratio') or 0) * 100, 1)}%, "
+            f"logic levels {issue.get('max_logic_levels', 0)}, fanout {issue.get('max_fanout', 0)}",
+        ]
+        actions = []
+        if not blocked:
+            # Quartus recommendations outrank derived and heuristic actions.
+            clocks = set(issue.get("clock_domains", []))
+            for item in summary.get("quartus_guidance", {}).get("fast_forward", {}).get("records", []):
+                optimization = str(item.get("optimization", ""))
+                domain = str(item.get("clock_domain", ""))
+                if not any(clock and (clock == domain or clock in domain) for clock in clocks):
+                    continue
+                if not optimization or optimization == "None" or "no further analysis" in optimization.lower():
+                    continue
+                actions.append(
+                    advice_action(
+                        optimization,
+                        f"Quartus Fast Forward step {item.get('step', 'unknown')} for the same clock domain.",
+                        [item.get("source", "Quartus Fast Forward")],
+                        "Quartus ground truth",
+                        0.95,
+                        "Fast Forward Timing Closure Recommendations",
+                        "retimed",
+                    )
+                )
+            for item in issue.get("evidence", {}).get("design_assistant", []):
+                recommendation = first_field(item.get("fields", {}), ("recommendation",))
+                description = first_field(item.get("fields", {}), ("description", "rule"))
+                if recommendation:
+                    actions.append(
+                        advice_action(
+                            recommendation,
+                            description or "Design Assistant correlates this rule violation to the issue anchor.",
+                            [item.get("source", "Quartus Design Assistant")],
+                            "Quartus ground truth",
+                            numeric(item.get("match_confidence")) or 0.0,
+                            "Design Assistant",
+                            "synthesis",
+                        )
+                    )
+            for item in issue.get("contextual_evidence", {}).get("retiming_limits", []):
+                recommendation = first_field(item.get("fields", {}), ("Recommendation",))
+                reason = first_field(item.get("fields", {}), ("Limiting Reason",))
+                if recommendation and recommendation.lower() != "none" and "no further analysis" not in reason.lower():
+                    actions.append(
+                        advice_action(
+                            recommendation,
+                            reason or "Quartus reports a retiming limit for the issue clock domain.",
+                            [item.get("source", "Quartus Retiming Limit Summary")],
+                            "Quartus ground truth",
+                            0.95,
+                            "Fast Forward Timing Closure Recommendations / Retiming Limit Summary",
+                            "retimed",
+                        )
+                    )
+            if diagnosis == "ROUTING_LIMITED" and "HIGH_FANOUT" in contributors:
+                actions.append(
+                    advice_action(
+                        "Inspect consumer placement and implement local registered control leaves or placement-aware duplication for the matched high-fanout anchor.",
+                        "Routing delay plus node-level high-fanout evidence points to distribution cost; adding a pipeline is not the first action.",
+                        evidence,
+                        "deterministic derived",
+                        confidence,
+                        "Chip Planner, Report Register Spread, Non-Global High Fan-Out Signals",
+                        "routed",
+                    )
+                )
+            if diagnosis == "ROUTING_LIMITED" and "PHYSICAL_SPREAD" in contributors:
+                actions.append(
+                    advice_action(
+                        "Inspect the producer/consumer footprint and reduce physical spread before changing the logic function.",
+                        "Matched register-spread evidence and a routing-dominated path indicate a placement/distribution problem.",
+                        evidence,
+                        "deterministic derived",
+                        confidence,
+                        "Chip Planner and Report Register Spread",
+                        "routed",
+                    )
+                )
+            if diagnosis == "LOGIC_LIMITED" and "DEEP_LOGIC" in contributors:
+                actions.append(
+                    advice_action(
+                        "Restructure the matched cone with predecode, a balanced tree, or an elastic pipeline boundary while preserving throughput.",
+                        "The validated delay split is logic-dominated and the sampled cone has deep logic.",
+                        evidence,
+                        "deterministic derived",
+                        confidence,
+                        "Report Logic Depth and Report Timing",
+                        "routed",
+                    )
+                )
+            if "RETIMING_RESTRICTED" in contributors and not any(
+                action["source"] == "Quartus ground truth" for action in actions
+            ):
+                actions.append(
+                    advice_action(
+                        "Review the matched retiming-restriction rows and remove only the restriction that is valid to change.",
+                        "A node-level retiming restriction overlaps the sampled issue, but qclose has no official node-specific fix text.",
+                        evidence,
+                        "heuristic",
+                        min(confidence, 0.70),
+                        "Report Retiming Restrictions",
+                        "retimed",
+                    )
+                )
+            if "MEMORY_ENDPOINT" in issue.get("context", []) and (
+                issue.get("evidence", {}).get("pipelining")
+                or issue.get("evidence", {}).get("retiming_restrictions")
+            ):
+                actions.append(
+                    advice_action(
+                        "Inspect the matched RAM output/control boundary and preserve same-address forwarding while adding only the reported pipeline/retiming boundary.",
+                        "A memory endpoint alone is context; this action is emitted because node-level pipelining or retiming evidence also overlaps the issue.",
+                        evidence,
+                        "deterministic derived",
+                        min(confidence, 0.85),
+                        "Report Pipelining Information / Report Retiming Restrictions",
+                        "retimed",
+                    )
+                )
+        records.append(
+            {
+                "priority": priority,
+                "issue_anchor": anchor,
+                "root_cause_candidate": issue.get("root_cause_candidate", False),
+                "diagnosis": diagnosis,
+                "contributors": sorted(contributors),
+                "context": issue.get("context", []),
+                "confidence": issue.get("confidence", {}),
+                "secondary_anchors": issue.get("secondary_anchors", []),
+                "next_actions": actions,
+            }
+        )
+
+    primary_clock_data = primary_clock(summary) or {}
+    wns = numeric(primary_clock_data.get("collected_wns_ns"))
+    high_conf_structural = any(
+        (numeric(issue.get("confidence", {}).get("overall")) or 0) >= 0.80
+        and bool(issue.get("contributors"))
+        for issue in summary.get("issues", [])
+    )
+    dse_eligible = (
+        not blocked
+        and not high_conf_structural
+        and wns is not None
+        and -0.20 <= wns < 0
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "health": health,
+        "rtl_advice_suppressed": blocked,
+        "issues": records,
+        "dse_ii": {
+            "eligible": dse_eligible,
+            "reason": (
+                "Timing is close and no high-confidence structural issue is present; use DSE II only after RTL and constraints are stable."
+                if dse_eligible
+                else "Not recommended now: preflight is blocked, timing is not close, or a higher-confidence structural issue remains."
+            ),
+            "source": "heuristic",
+        },
+    }
+
+
+def render_advice(advice: dict[str, Any]) -> str:
+    health = advice.get("health", {})
+    lines = [
+        "# qclose timing-closure advice",
+        "",
+        "## Engineering summary",
+        "",
+        f"- Preflight: **{health.get('status', 'unknown')}**",
+        f"- RTL advice suppressed: **{advice.get('rtl_advice_suppressed', False)}**",
+        f"- Correlated issues: **{sum(item.get('diagnosis') != 'TIMING_PREFLIGHT_BLOCKED' for item in advice.get('issues', []))}**",
+    ]
+    for reason in health.get("reasons", [])[:8]:
+        lines.append(f"- Health evidence: {reason}")
+    lines.extend(["", "## Prioritized actions", ""])
+    for record in advice.get("issues", []):
+        anchor = record.get("issue_anchor", {})
+        lines.append(
+            f"### P{record.get('priority')} — `{anchor.get('node', 'unknown')}` — {record.get('diagnosis', 'UNKNOWN')}"
+        )
+        lines.append("")
+        lines.append(
+            f"Anchor method: `{anchor.get('selection_method', 'unknown')}`; "
+            f"root-cause candidate: `{record.get('root_cause_candidate', False)}`."
+        )
+        if record.get("context"):
+            lines.append(f"Context: {', '.join(record['context'])}.")
+        actions = record.get("next_actions", [])
+        if not actions:
+            lines.append("No RTL action emitted: available evidence does not satisfy a supported rule or preflight is blocked.")
+        for index, action in enumerate(actions, 1):
+            lines.extend(
+                [
+                    "",
+                    f"{index}. {action['action']}",
+                    f"   - Why: {action['why']}",
+                    f"   - Source class: `{action['source']}`; confidence: `{format_number(action['confidence'], 2)}`",
+                    f"   - Quartus view: {action['quartus_tool']}",
+                    f"   - Minimum validation stage: `{action['validation_stage']}`",
+                ]
+            )
+    lines.extend(
+        [
+            "",
+            "## DSE II gate",
+            "",
+            f"- Eligible: **{advice.get('dse_ii', {}).get('eligible', False)}**",
+            f"- {advice.get('dse_ii', {}).get('reason', '')}",
+            "",
+            "> Source classes: `Quartus ground truth` is copied from an existing Quartus report; "
+            "`deterministic derived` is a fixed rule over validated metrics; `heuristic` requires engineering review.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def advise(run_dir: Path) -> dict[str, Any]:
+    summary_path = run_dir / "summary.json"
+    summary = read_json(summary_path)
+    if not isinstance(summary, dict):
+        summary = summarize(run_dir)
+    result = build_advice(summary)
+    write_json(run_dir / "advice.json", result)
+    (run_dir / "advice.md").write_text(render_advice(result), encoding="utf-8")
+    return result
+
+
 def timing_project(summary: dict[str, Any]) -> str:
     metadata = summary.get("timing_metadata", {})
     return f"{metadata.get('project', 'unknown')}/{metadata.get('revision', 'unknown')}"
@@ -1808,10 +2555,15 @@ def evidence_count(issue: dict[str, Any]) -> int:
     return sum(len(records) for records in issue.get("evidence", {}).values())
 
 
+def issue_anchor(issue: dict[str, Any]) -> dict[str, Any]:
+    """Read schema-v4 anchors while keeping old summaries comparable."""
+    return issue.get("issue_anchor") or issue.get("root_cause") or {}
+
+
 def issue_comparison_key(issue: dict[str, Any]) -> str:
     if issue.get("issue_id"):
         return str(issue["issue_id"])
-    root = issue.get("root_cause", {})
+    root = issue_anchor(issue)
     identity = root.get("identity", {})
     return str(identity.get("base") or identity.get("normalized") or issue.get("hierarchy", ""))
 
@@ -1836,7 +2588,7 @@ def compare_summaries(old_path: Path, new_path: Path) -> str:
     lines = ["# Quartus timing comparison", "", f"- Old: `{old_file}`", f"- New: `{new_file}`", ""]
     old_config = old.get("timing_metadata", {})
     new_config = new.get("timing_metadata", {})
-    sampling_keys = ("paths_per_clock", "detailed_paths")
+    sampling_keys = ("snapshot", "paths_per_clock", "detailed_paths")
     if any(old_config.get(key) != new_config.get(key) for key in sampling_keys):
         lines.extend(
             [
@@ -1980,7 +2732,7 @@ def compare_summaries(old_path: Path, new_path: Path) -> str:
             old_wns = numeric(old_issue.get("wns_ns")) if old_issue else None
             new_wns = numeric(new_issue.get("wns_ns")) if new_issue else None
             delta = new_wns - old_wns if old_wns is not None and new_wns is not None else None
-            root = (new_issue or old_issue or {}).get("root_cause", {})
+            root = issue_anchor(new_issue or old_issue or {})
             issue_rows.append(
                 [
                     root.get("node") or (new_issue or old_issue or {}).get("hierarchy"),
@@ -2002,8 +2754,8 @@ def compare_summaries(old_path: Path, new_path: Path) -> str:
                     ", ".join(new_issue.get("contributors", [])) if new_issue else "—",
                     format_number(old_issue.get("confidence", {}).get("overall"), 2) if old_issue else "—",
                     format_number(new_issue.get("confidence", {}).get("overall"), 2) if new_issue else "—",
-                    format_number(old_issue.get("confidence", {}).get("evidence_match"), 2) if old_issue else "—",
-                    format_number(new_issue.get("confidence", {}).get("evidence_match"), 2) if new_issue else "—",
+                    format_number(old_issue.get("confidence", {}).get("evidence_coverage"), 2) if old_issue else "—",
+                    format_number(new_issue.get("confidence", {}).get("evidence_coverage"), 2) if new_issue else "—",
                 ]
             )
         issue_rows.sort(key=lambda row: (row[1] not in {"regressed", "entered-sample", "split", "merged"}, row[3]))
@@ -2013,7 +2765,7 @@ def compare_summaries(old_path: Path, new_path: Path) -> str:
                 "",
                 markdown_table(
                     [
-                        "Root-cause node",
+                        "Issue anchor",
                         "Status",
                         "Old WNS",
                         "New WNS",
@@ -2172,6 +2924,8 @@ def collect(args: argparse.Namespace) -> Path:
         "source_fingerprint": fingerprint,
         "compilation_state": state,
         "command": " ".join(sys.argv),
+        "requested_snapshot": args.snapshot,
+        "capabilities": snapshot_capabilities(args.snapshot),
     }
     write_json(run_dir / "collection_metadata.json", metadata)
     if state["sta_older_than_sources"]:
@@ -2193,6 +2947,7 @@ def collect(args: argparse.Namespace) -> Path:
             str(run_dir),
             str(args.paths_per_clock),
             str(args.detailed_paths),
+            args.snapshot,
         ],
         project_root,
         run_dir / "quartus_sta_collect.log",
@@ -2203,13 +2958,25 @@ def collect(args: argparse.Namespace) -> Path:
         "QTA_BOTTLENECK_BEGIN",
         "QTA_BOTTLENECK_END",
     )
-    run_logged(
-        [str(quartus_sh), "-t", str(report_tcl), args.project, args.revision, str(run_dir)],
-        project_root,
-        run_dir / "quartus_report_collect.log",
-    )
+    if args.snapshot == "final":
+        run_logged(
+            [str(quartus_sh), "-t", str(report_tcl), args.project, args.revision, str(run_dir)],
+            project_root,
+            run_dir / "quartus_report_collect.log",
+        )
+    else:
+        write_json(run_dir / "selected_panels.json", [])
+        write_json(
+            run_dir / "report_metadata.json",
+            {
+                "status": "not-collected-for-intermediate-stage",
+                "snapshot": args.snapshot,
+                "reason": "Compilation Report DB panels are final-build context and are not mixed into an intermediate snapshot run.",
+            },
+        )
 
     summarize(run_dir)
+    advise(run_dir)
     previous = run_directories(output_root)
     previous = [path for path in previous if path != run_dir]
     if previous:
@@ -2241,9 +3008,18 @@ def parse_args() -> argparse.Namespace:
     collect_parser.add_argument("--run-name")
     collect_parser.add_argument("--paths-per-clock", type=int, default=50)
     collect_parser.add_argument("--detailed-paths", type=int, default=20)
+    collect_parser.add_argument(
+        "--snapshot",
+        choices=QUARTUS_SNAPSHOTS,
+        default="final",
+        help="analyze an existing Quartus database snapshot; does not run Fitter or compilation",
+    )
 
     summarize_parser = subparsers.add_parser("summarize", help="regenerate summary files for one collection")
     summarize_parser.add_argument("run_dir", type=Path)
+
+    advise_parser = subparsers.add_parser("advise", help="generate deterministic advice.json and advice.md")
+    advise_parser.add_argument("run_dir", type=Path)
 
     compare_parser = subparsers.add_parser("compare", help="compare two timing collections")
     compare_parser.add_argument("old", type=Path)
@@ -2268,6 +3044,9 @@ def main() -> int:
         elif args.command == "summarize":
             summarize(args.run_dir.resolve())
             print(args.run_dir.resolve() / "summary.md")
+        elif args.command == "advise":
+            advise(args.run_dir.resolve())
+            print(args.run_dir.resolve() / "advice.md")
         elif args.command == "compare":
             output = compare_summaries(args.old.resolve(), args.new.resolve())
             if args.output:

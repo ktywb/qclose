@@ -125,20 +125,24 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
                     self.assertLessEqual(validation[error], QTA.DELAY_TOLERANCE_NS)
                 self.assertEqual(validation["logic_levels_error"], 0)
 
-    def test_real_quartus_fixture_root_cause_clustering(self) -> None:
+    def test_real_quartus_fixture_issue_anchor_clustering(self) -> None:
         expected, paths, metrics, structured = self.real_fixture_analysis()
         issues = QTA.build_issues(paths, metrics, structured)
 
         self.assertEqual(len(issues), len(expected["issues"]))
-        issues_by_root = {issue["root_cause"]["node"]: issue for issue in issues}
+        issues_by_root = {issue["issue_anchor"]["node"]: issue for issue in issues}
         for expected_issue in expected["issues"]:
             issue = issues_by_root[expected_issue["root_node"]]
-            self.assertEqual(issue["root_cause"]["selection_method"], expected_issue["selection_method"])
+            self.assertEqual(issue["issue_anchor"]["selection_method"], expected_issue["selection_method"])
             self.assertEqual(issue["paths"], expected_issue["sampled_paths"])
             self.assertEqual(issue["primary_diagnosis"], expected_issue["primary_diagnosis"])
             self.assertTrue(set(expected_issue["required_contributors"]) <= set(issue["contributors"]))
+            self.assertTrue(set(expected_issue.get("required_context", [])) <= set(issue["context"]))
             self.assertEqual(issue["confidence"]["timing_consistency"], 1.0)
             self.assertEqual(issue["confidence"]["quartus_breakdown_validation"], 1.0)
+            self.assertIn("evidence_strength", issue["confidence"])
+            self.assertIn("evidence_coverage", issue["confidence"])
+            self.assertNotIn("MEMORY_ENDPOINT", issue["contributors"])
             if expected_issue["selection_method"] == "common-exact-node":
                 self.assertFalse(
                     {"PHYSICAL_SPREAD", "ROUTING_PRESSURE", "RETIMING_RESTRICTED"}
@@ -181,6 +185,87 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
         )
         self.assertEqual(method, "same-hierarchy")
         self.assertLess(confidence, 0.60)
+
+    def test_real_quartus_negative_controls(self) -> None:
+        controls = json.loads((REAL_FIXTURE / "negative_controls.json").read_text(encoding="utf-8"))
+        for control in controls:
+            record = {
+                "identity": QTA.node_identity(control["record"]),
+                "source": "real-fixture-control",
+                "fields": {},
+            }
+            confidence, method = QTA.node_match_confidence(
+                record,
+                [QTA.node_identity(control["path_node"])],
+                control["hierarchy"],
+            )
+            self.assertEqual(method, control["expected_method"], control["name"])
+            self.assertEqual(confidence, control["expected_confidence"], control["name"])
+
+    def test_health_gate_suppresses_rtl_advice(self) -> None:
+        guidance = {
+            "design_assistant": {"status": "unavailable-or-not-run", "violations": []},
+        }
+        health = QTA.build_health(
+            {},
+            ["Check", "Number of Issues Found"],
+            [["no_clock", "1"]],
+            [],
+            [],
+            {"consistency_failures": 0, "quartus_breakdown_failures": 0},
+            {},
+            [],
+            0,
+            guidance,
+        )
+        advice = QTA.build_advice({"health": health, "issues": [], "clocks": []})
+
+        self.assertEqual(health["status"], "blocked")
+        self.assertTrue(advice["rtl_advice_suppressed"])
+        self.assertEqual(advice["issues"][0]["diagnosis"], "TIMING_PREFLIGHT_BLOCKED")
+
+    def test_advice_prefers_quartus_guidance_and_memory_context_is_not_causal(self) -> None:
+        clock = "top|pll|clk"
+        summary = {
+            "health": {"status": "pass", "reasons": []},
+            "clocks": [{"name": clock, "collected_wns_ns": -0.1}],
+            "quartus_guidance": {
+                "fast_forward": {
+                    "records": [
+                        {
+                            "clock_domain": clock,
+                            "step": "Fast Forward Limit",
+                            "optimization": "Performance Limited by: Retiming Dependency Loop",
+                            "source": "report_db:Fast Forward",
+                        }
+                    ]
+                }
+            },
+            "issues": [
+                {
+                    "issue_anchor": {"node": "top|unit|enable", "selection_method": "bottleneck-node"},
+                    "primary_diagnosis": "ROUTING_LIMITED",
+                    "contributors": ["HIGH_FANOUT", "PHYSICAL_SPREAD"],
+                    "context": ["MEMORY_ENDPOINT"],
+                    "clock_domains": [clock],
+                    "confidence": {"overall": 0.9},
+                    "wns_ns": -0.1,
+                    "paths": 3,
+                    "average_route_ratio": 0.8,
+                    "max_logic_levels": 4,
+                    "max_fanout": 100,
+                    "evidence": {},
+                    "contextual_evidence": {},
+                }
+            ],
+        }
+
+        advice = QTA.build_advice(summary)
+        actions = advice["issues"][0]["next_actions"]
+
+        self.assertEqual(actions[0]["source"], "Quartus ground truth")
+        self.assertEqual(actions[1]["source"], "deterministic derived")
+        self.assertNotIn("RAM output", " ".join(action["action"] for action in actions))
 
     def test_unrecognized_report_is_warning_not_empty_success(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -317,7 +402,7 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
         def issue(issue_id, node, wns, paths):
             return {
                 "issue_id": issue_id,
-                "root_cause": {"node": node, "identity": QTA.node_identity(node)},
+                "issue_anchor": {"node": node, "identity": QTA.node_identity(node)},
                 "hierarchy": "top|unit",
                 "wns_ns": wns,
                 "paths": len(paths),
@@ -331,7 +416,7 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
 
         def summary(issues):
             return {
-                "schema_version": 3,
+                "schema_version": 4,
                 "timing_metadata": {"paths_per_clock": 50, "detailed_paths": 20},
                 "clocks": [{"name": "clk", "collected_wns_ns": -0.2, "collected_setup_paths": 20}],
                 "timing": {"hierarchy_groups": [], "detailed_path_aggregate": {}, "bottlenecks": {}},

@@ -11,6 +11,9 @@ small original qclose report, and `structured_evidence.json` contains only
 node-level report records relevant to those ten paths.
 `normalization_samples.json` contains real replica names extracted from the
 same build's register-spread report.
+`negative_controls.json` contains real fitted names from the same run and
+checks that similar generated cells, PE replicas, and unrelated evidence do
+not become false exact/base matches; bus lanes remain medium-strength only.
 
 Regenerate the mechanical subset from an existing collection with:
 
