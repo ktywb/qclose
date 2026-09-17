@@ -3,7 +3,7 @@
 `qclose` collects structured Quartus timing and compilation-report data, builds
 compact Markdown/JSON summaries, and compares timing-closure runs.
 
-The schema-v4 analyzer also:
+The schema-v5 analyzer also:
 
 - checks that detailed point delays reproduce Quartus `data_delay` and slack;
 - separates cell, local-interconnect, and fabric-routing delay;
@@ -20,8 +20,9 @@ The schema-v4 analyzer also:
   quality; serious constraint findings suppress RTL advice;
 - normalizes existing Design Assistant, Fast Forward, and retiming guidance
   without launching those Quartus flows;
-- generates deterministic `advice.json` and `advice.md`, with every action
-  labeled as Quartus ground truth, deterministic derived, or heuristic;
+- generates deterministic `advice.json` and `advice.md`; official-report
+  origin, issue-association method/confidence, and diagnosis confidence are
+  separate fields;
 - emits evidence-backed issue records and compares issue, delay-character,
   resource, routing, Fmax, Fast Forward, and physical metrics between runs.
 
@@ -51,8 +52,8 @@ It consists of:
 
 No third-party Python packages are required.
 
-The regression suite includes a minimized, non-synthetic Quartus Prime Pro
-25.1 / Agilex 7 fixture under `tests/fixtures/quartus_25_1_agilex7_real`.
+The regression suite includes minimized, non-synthetic Quartus Prime Pro 25.1
+/ Agilex 7 timing and five-snapshot fixtures under `tests/fixtures`.
 
 ## Usage
 
@@ -75,6 +76,16 @@ Generate deterministic advice from an existing summary:
 
 ```sh
 python3 quartus_timing_analyze.py advise logs/timing-analysis/<run>
+```
+
+DSE II is never marked eligible unless an engineer asserts that RTL and
+constraints are stable. The closeness test uses `abs(WNS) / clock_period`, not
+an absolute nanosecond threshold:
+
+```sh
+python3 quartus_timing_analyze.py advise logs/timing-analysis/<run> \
+  --design-stable \
+  --dse-slack-ratio-threshold 0.05
 ```
 
 Analyze an already-existing intermediate Quartus database without running
@@ -119,7 +130,9 @@ python3 -m unittest discover -s tests -v
 3. Use `summary.json` for evidence and `advice.md` for the bounded action list.
    `issue_anchor` is a grouping/diagnostic anchor, not automatically a proven
    root cause.
-4. Validate an RTL change at the `validation_stage` attached to its action.
+4. Validate an RTL change at the `validation_snapshot` attached to its action.
+   Logic/depth uses `planned`, physical spread uses `placed`, route behavior
+   uses `routed`, retiming uses `retimed`, and sign-off uses `final`.
    qclose intentionally does not invent compile commands or mutate RTL, QSF,
    or SDC files.
 5. Compare runs only after confirming their source fingerprints, snapshot, and

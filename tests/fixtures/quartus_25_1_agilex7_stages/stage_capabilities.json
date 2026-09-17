@@ -1,0 +1,101 @@
+{
+  "origin": "One Agilex 7 project state measured with Quartus Prime Pro 25.1; intermediate runs 20260916-105628 through 20260916-110454 and matching-fingerprint final run 20260916-134607",
+  "quartus_version": "Version 25.1.0 Build 129 03/26/2025 Patches 0.36 SC Pro Edition",
+  "snapshots": [
+    {
+      "snapshot": "planned",
+      "source_fingerprint": "952960cdd4b83978aec4f6be3449dd21733bdab70921c65c5832571f80ac3a3b",
+      "observed": {
+        "timing_paths": "supported",
+        "routing_detail": "unavailable-for-stage",
+        "register_spread": "unavailable-for-stage",
+        "retiming": "unavailable-for-stage",
+        "compilation_report_db": "not-collected-for-intermediate-stage"
+      },
+      "observed_outputs": {
+        "timing_paths": 4,
+        "logic_depth": {"status": "pass", "records": 4},
+        "register_spread": {"status": "unavailable-for-stage"},
+        "net_delay": {"status": "unavailable-for-stage"},
+        "route_nets": {"status": "unavailable-for-stage"},
+        "pipelining": {"status": "unavailable-for-stage"},
+        "retiming_restrictions": {"status": "unavailable-for-stage"}
+      }
+    },
+    {
+      "snapshot": "placed",
+      "source_fingerprint": "952960cdd4b83978aec4f6be3449dd21733bdab70921c65c5832571f80ac3a3b",
+      "observed": {
+        "timing_paths": "supported",
+        "routing_detail": "unavailable-for-stage",
+        "register_spread": "supported",
+        "retiming": "unavailable-for-stage",
+        "compilation_report_db": "not-collected-for-intermediate-stage"
+      },
+      "observed_outputs": {
+        "timing_paths": 4,
+        "logic_depth": {"status": "pass", "records": 4},
+        "register_spread": {"status": "pass", "records": 100},
+        "net_delay": {"status": "unavailable-for-stage"},
+        "route_nets": {"status": "unavailable-for-stage"},
+        "pipelining": {"status": "unavailable-for-stage"},
+        "retiming_restrictions": {"status": "unavailable-for-stage"}
+      }
+    },
+    {
+      "snapshot": "routed",
+      "source_fingerprint": "952960cdd4b83978aec4f6be3449dd21733bdab70921c65c5832571f80ac3a3b",
+      "observed": {
+        "timing_paths": "supported",
+        "routing_detail": "supported",
+        "register_spread": "supported",
+        "retiming": "unavailable-for-stage",
+        "compilation_report_db": "not-collected-for-intermediate-stage"
+      },
+      "observed_outputs": {
+        "timing_paths": 4,
+        "logic_depth": {"status": "pass", "records": 4},
+        "register_spread": {"status": "pass", "records": 100},
+        "net_delay": {"status": "pass", "records": 25},
+        "route_nets": {"status": "pass", "records": 100},
+        "pipelining": {"status": "unavailable-for-stage"},
+        "retiming_restrictions": {"status": "unavailable-for-stage"}
+      }
+    },
+    {
+      "snapshot": "retimed",
+      "source_fingerprint": "952960cdd4b83978aec4f6be3449dd21733bdab70921c65c5832571f80ac3a3b",
+      "observed": {
+        "timing_paths": "supported",
+        "routing_detail": "supported",
+        "register_spread": "supported",
+        "retiming": "supported",
+        "compilation_report_db": "not-collected-for-intermediate-stage"
+      },
+      "observed_outputs": {
+        "timing_paths": 4,
+        "logic_depth": {"status": "pass", "records": 4},
+        "register_spread": {"status": "pass", "records": 100},
+        "net_delay": {"status": "pass", "records": 25},
+        "route_nets": {"status": "pass", "records": 100},
+        "pipelining": {"status": "pass", "records": 21},
+        "retiming_restrictions": {"status": "pass", "records": 171}
+      }
+    },
+    {
+      "snapshot": "final",
+      "source_fingerprint": "952960cdd4b83978aec4f6be3449dd21733bdab70921c65c5832571f80ac3a3b",
+      "observed": {
+        "timing_paths": "supported",
+        "routing_detail": "supported",
+        "register_spread": "supported",
+        "retiming": "supported",
+        "compilation_report_db": "supported"
+      },
+      "observed_outputs": {
+        "compilation_report_panels": 640,
+        "selected_report_panels": 27
+      }
+    }
+  ]
+}

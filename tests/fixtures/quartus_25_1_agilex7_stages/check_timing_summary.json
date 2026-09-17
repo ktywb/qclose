@@ -1,0 +1,29 @@
+{
+  "origin": "logs/timing-analysis/20260917-113601/check_timing.rpt",
+  "columns": ["Check", "Number of Issues Found"],
+  "rows": [
+    ["no_clock", "311"],
+    ["multiple_clock", "0"],
+    ["pos_neg_clock_domain", "0"],
+    ["generated_clock", "0"],
+    ["virtual_clock", "0"],
+    ["no_input_delay", "0"],
+    ["no_output_delay", "0"],
+    ["partial_input_delay", "0"],
+    ["partial_output_delay", "0"],
+    ["io_min_max_delay_consistency", "0"],
+    ["reference_pin", "0"],
+    ["internal_io_delay", "0"],
+    ["latency_override", "0"],
+    ["partial_multicycle", "0"],
+    ["multicycle_consistency", "0"],
+    ["loops", "0"],
+    ["unsupported_latches", "0"],
+    ["pll_cross_check", "0"],
+    ["uncertainty", "0"],
+    ["partial_min_max_delay", "0"],
+    ["clock_assignments_on_output_ports", "0"],
+    ["input_delay_assigned_to_clock", "0"],
+    ["synchronous_data_delay", "0"]
+  ]
+}

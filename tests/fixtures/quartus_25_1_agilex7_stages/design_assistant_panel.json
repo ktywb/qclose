@@ -1,0 +1,18 @@
+{
+  "footer": "",
+  "header": "",
+  "name": "Synthesis||Design Assistant (Elaborated)||Design Assistant (Elaborated) Results - 0 of 10 Rules Failed||Design Assistant (Elaborated) Results - 0 of 10 Rules Failed",
+  "rows": [
+    ["ID", "Rule", "Severity", "Violations", "Waived", "Tags"],
+    ["1", "RES-10204 - Reset Release Instance Count Check", "High", "0", "0", "system"],
+    ["2", "RES-50005 - RAM Control Signals Driven by Flip-Flops with Asynchronous Clears", "Medium", "0", "0", "ram, reset-usage"],
+    ["3", "FLP-10100 - Large Multipliers are Decomposed", "Low", "0", "0", "dsp, synthesis"],
+    ["4", "LNT-30020 - Same Signal Source Drives Synchronous and Asynchronous Ports of the Same Register", "Low", "0", "0", "nonstandard-timing"],
+    ["5", "LNT-30021 - Same Signal Source Drives More Than One Asynchronous Port of a Register", "Low", "0", "0", "nonstandard-timing"],
+    ["6", "LNT-30022 - Same Signal Source Drives Clock Port and Another Port of a Register", "Low", "0", "0", "nonstandard-timing"],
+    ["7", "RES-10201 - Power Up Don't Care Setting May Prevent Retiming", "Low", "0", "0", "reset-usage, retime"],
+    ["8", "TMC-10115 - High Fan-out Signal", "Low", "0", "0", "register-duplication"],
+    ["9", "TMC-20050 - RAM Control Signals Driven by LUTs or ALMs instead of DFFs", "Low", "0", "0", "ram"],
+    ["10", "TMC-20051 - RAM Control Signals Driven by High Fan-Out Net", "Low", "0", "0", "ram"]
+  ]
+}

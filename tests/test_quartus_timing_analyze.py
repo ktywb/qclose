@@ -7,6 +7,7 @@ from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "quartus_timing_analyze.py"
 REAL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "quartus_25_1_agilex7_real"
+STAGE_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "quartus_25_1_agilex7_stages"
 SPEC = importlib.util.spec_from_file_location("quartus_timing_analyze", MODULE_PATH)
 assert SPEC and SPEC.loader
 QTA = importlib.util.module_from_spec(SPEC)
@@ -204,7 +205,7 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
 
     def test_health_gate_suppresses_rtl_advice(self) -> None:
         guidance = {
-            "design_assistant": {"status": "unavailable-or-not-run", "violations": []},
+            "design_assistant": {"status": "unavailable", "violations": []},
         }
         health = QTA.build_health(
             {},
@@ -263,9 +264,134 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
         advice = QTA.build_advice(summary)
         actions = advice["issues"][0]["next_actions"]
 
-        self.assertEqual(actions[0]["source"], "Quartus ground truth")
-        self.assertEqual(actions[1]["source"], "deterministic derived")
+        self.assertEqual(actions[0]["source_origin"], "quartus_official_report")
+        self.assertEqual(actions[0]["guidance_class"], "official_guidance")
+        self.assertEqual(actions[0]["association_method"], "same-clock-domain")
+        self.assertEqual(actions[0]["association_confidence"], 0.35)
+        self.assertEqual(actions[1]["source_origin"], "qclose_derived")
+        self.assertEqual(actions[1]["guidance_class"], "deterministic_derived")
+        self.assertEqual(actions[1]["validation_snapshot"], "routed")
+        self.assertEqual(actions[2]["validation_snapshot"], "placed")
         self.assertNotIn("RAM output", " ".join(action["action"] for action in actions))
+
+    def test_real_design_assistant_panel_and_unknown_format(self) -> None:
+        panel = json.loads((STAGE_FIXTURE / "design_assistant_panel.json").read_text(encoding="utf-8"))
+        columns, rows = QTA.panel_rows(panel)
+        reports = {"design_assistant": [{"name": panel["name"], "columns": columns, "rows": rows}]}
+
+        parsed = QTA.normalized_quartus_guidance(reports, report_db_available=True)["design_assistant"]
+        unknown = QTA.normalized_quartus_guidance(
+            {"design_assistant": [{"name": "future", "columns": ["Future"], "rows": [["0"]]}]},
+            report_db_available=True,
+        )["design_assistant"]
+
+        self.assertEqual(parsed["status"], "pass")
+        self.assertTrue(parsed["format_recognized"])
+        self.assertEqual(parsed["rules_checked"], 10)
+        self.assertEqual(unknown["status"], "unrecognized-format")
+        self.assertEqual(
+            QTA.normalized_quartus_guidance({}, report_db_available=True)["design_assistant"]["status"],
+            "not-run",
+        )
+        self.assertEqual(
+            QTA.normalized_quartus_guidance({}, report_db_available=False)["design_assistant"]["status"],
+            "unavailable",
+        )
+
+    def test_health_deduplicates_unconstrained_and_classifies_check_timing(self) -> None:
+        reports = {
+            "unconstrained": [
+                {
+                    "columns": ["Property", "Setup", "Hold", "Status"],
+                    "rows": [["Unconstrained Paths", "1", "0", "Unconstrained"]],
+                }
+            ]
+        }
+        health = QTA.build_health(
+            reports,
+            ["Check", "Number of Issues Found"],
+            [["uncertainty", "2"]],
+            [],
+            [],
+            {"consistency_failures": 0, "quartus_breakdown_failures": 0},
+            {},
+            [],
+            0,
+            {"design_assistant": {"status": "pass", "violations": []}},
+        )
+        self.assertEqual(len(health["constraints"]["unconstrained_records"]), 1)
+        self.assertEqual(health["constraints"]["warning_check_timing"], {"uncertainty": 2})
+        self.assertEqual(health["constraints"]["blocking_check_timing"], {})
+        self.assertEqual(health["constraints"]["informational_check_timing"], {})
+        self.assertEqual(health["constraints"]["status"], "blocked")
+
+        warning_only = QTA.build_health(
+            {"unconstrained": [{"columns": ["Property", "Setup", "Hold"], "rows": []}]},
+            ["Check", "Number of Issues Found"],
+            [["uncertainty", "2"]],
+            [],
+            [],
+            {"consistency_failures": 0, "quartus_breakdown_failures": 0},
+            {},
+            [],
+            0,
+            {"design_assistant": {"status": "pass", "violations": []}},
+        )
+        self.assertEqual(warning_only["constraints"]["status"], "warning")
+
+        real_check = json.loads((STAGE_FIXTURE / "check_timing_summary.json").read_text(encoding="utf-8"))
+        real_health = QTA.build_health(
+            {"unconstrained": [{"columns": ["Property", "Setup", "Hold"], "rows": []}]},
+            real_check["columns"],
+            real_check["rows"],
+            [],
+            [],
+            {"consistency_failures": 0, "quartus_breakdown_failures": 0},
+            {},
+            [],
+            0,
+            {"design_assistant": {"status": "pass", "violations": []}},
+        )
+        self.assertEqual(real_health["constraints"]["blocking_check_timing"], {"no_clock": 311})
+        self.assertEqual(real_health["constraints"]["warning_check_timing"], {})
+        self.assertEqual(real_health["constraints"]["informational_check_timing"], {})
+
+    def test_dse_gate_uses_normalized_slack_and_explicit_stability(self) -> None:
+        summary = {
+            "health": {"status": "pass", "reasons": []},
+            "clocks": [{"name": "clk", "period_ns": 2.5, "collected_wns_ns": -0.1}],
+            "issues": [],
+        }
+        self.assertFalse(QTA.build_advice(summary)["dse_ii"]["eligible"])
+        eligible = QTA.build_advice(summary, design_stable=True)["dse_ii"]
+        self.assertTrue(eligible["eligible"])
+        self.assertAlmostEqual(eligible["slack_ratio"], 0.04)
+        summary["clocks"][0]["collected_wns_ns"] = -0.15
+        self.assertFalse(QTA.build_advice(summary, design_stable=True)["dse_ii"]["eligible"])
+
+    def test_real_quartus_intermediate_snapshot_capabilities(self) -> None:
+        fixture = json.loads((STAGE_FIXTURE / "stage_capabilities.json").read_text(encoding="utf-8"))
+        self.assertTrue(fixture["quartus_version"].startswith("Version 25.1.0"))
+        self.assertEqual(len({item["source_fingerprint"] for item in fixture["snapshots"]}), 1)
+        for item in fixture["snapshots"]:
+            actual = QTA.snapshot_capabilities(item["snapshot"])
+            for capability, expected_status in item["observed"].items():
+                self.assertEqual(actual[capability]["status"], expected_status)
+
+        snapshots = {item["snapshot"]: item["observed_outputs"] for item in fixture["snapshots"]}
+        self.assertEqual(snapshots["planned"]["timing_paths"], 4)
+        self.assertEqual(snapshots["planned"]["logic_depth"], {"status": "pass", "records": 4})
+        self.assertEqual(snapshots["planned"]["net_delay"]["status"], "unavailable-for-stage")
+        self.assertEqual(snapshots["placed"]["register_spread"], {"status": "pass", "records": 100})
+        self.assertEqual(snapshots["routed"]["net_delay"], {"status": "pass", "records": 25})
+        self.assertEqual(snapshots["routed"]["route_nets"], {"status": "pass", "records": 100})
+        self.assertEqual(snapshots["retimed"]["pipelining"], {"status": "pass", "records": 21})
+        self.assertEqual(
+            snapshots["retimed"]["retiming_restrictions"],
+            {"status": "pass", "records": 171},
+        )
+        self.assertEqual(snapshots["final"]["compilation_report_panels"], 640)
+        self.assertEqual(snapshots["final"]["selected_report_panels"], 27)
 
     def test_unrecognized_report_is_warning_not_empty_success(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -416,7 +542,7 @@ class QuartusTimingAnalyzeTest(unittest.TestCase):
 
         def summary(issues):
             return {
-                "schema_version": 4,
+                "schema_version": 5,
                 "timing_metadata": {"paths_per_clock": 50, "detailed_paths": 20},
                 "clocks": [{"name": "clk", "collected_wns_ns": -0.2, "collected_setup_paths": 20}],
                 "timing": {"hierarchy_groups": [], "detailed_path_aggregate": {}, "bottlenecks": {}},

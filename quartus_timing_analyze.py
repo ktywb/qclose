@@ -24,10 +24,20 @@ from typing import Any, Iterable
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_ROOT = Path("logs/timing-analysis")
 SOURCE_SUFFIXES = {".scala", ".v", ".sv", ".sdc", ".qsf", ".tcl"}
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DELAY_TOLERANCE_NS = 0.002
 ISSUE_WNS_CHANGE_NS = 0.005
 QUARTUS_SNAPSHOTS = ("planned", "placed", "routed", "retimed", "final")
+CHECK_TIMING_BLOCKING = {
+    "no_clock",
+    "multiple_clock",
+    "pos_neg_clock_domain",
+    "loops",
+    "unsupported_latches",
+}
+# Keep this allow-list empty until a nonzero Quartus 25.1 finding has been
+# validated as safe to ignore. Unknown/non-blocking checks remain warnings.
+CHECK_TIMING_INFORMATIONAL: set[str] = set()
 
 
 def snapshot_capabilities(snapshot: str) -> dict[str, Any]:
@@ -52,7 +62,7 @@ def snapshot_capabilities(snapshot: str) -> dict[str, Any]:
             "status": "supported" if snapshot == "final" else "not-collected-for-intermediate-stage",
             "minimum_stage": "final",
         },
-        "basis": "Quartus Prime Pro 25.1 --help=snapshot plus conservative report-stage requirements",
+        "basis": "Quartus Prime Pro 25.1 measured Agilex 7 stage fixture plus --help=snapshot",
     }
 
 
@@ -750,36 +760,54 @@ def selected_panel_summary(panels: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def normalized_quartus_guidance(reports: dict[str, Any]) -> dict[str, Any]:
+def normalized_quartus_guidance(
+    reports: dict[str, Any], report_db_available: bool = True
+) -> dict[str, Any]:
     """Normalize only Quartus guidance already present in Report DB panels."""
     design_panels = reports.get("design_assistant", [])
     design_rules = []
+    design_format_recognized = True
     for panel in design_panels:
         columns = panel.get("columns", [])
+        required_columns = {"Rule", "Severity", "Violations"}
+        if not required_columns.issubset(set(columns)):
+            design_format_recognized = False
+            continue
         for row in panel.get("rows", []):
             fields = row_as_fields(columns, row)
-            violation_count = int(numeric(first_field(fields, ("Violations", "Violation Count"))) or 0)
+            violation_text = first_field(fields, ("Violations", "Violation Count"))
             rule_text = first_field(fields, ("Rule", "Rule Name"))
+            if not rule_text or numeric(violation_text) is None:
+                design_format_recognized = False
+                continue
+            violation_count = int(numeric(violation_text) or 0)
             rule_match = re.match(r"([^ ]+)\s+-\s+(.+)", rule_text)
             design_rules.append(
                 {
                     "rule": rule_match.group(1) if rule_match else rule_text,
                     "severity": first_field(fields, ("Severity",)),
-                    "stage": "elaborated" if "Elaborated" in panel.get("name", "") else "unknown",
+                    "quartus_phase": "synthesis" if "Synthesis" in panel.get("name", "") else "unknown",
+                    "analysis_view": "elaborated" if "Elaborated" in panel.get("name", "") else "unknown",
                     "category": first_field(fields, ("Tags", "Category")),
                     "description": rule_match.group(2) if rule_match else rule_text,
                     "recommendation": first_field(fields, ("Recommendation",)),
                     "node": first_field(fields, ("Node", "Node Name", "Entity")),
                     "path": first_field(fields, ("Path", "Location")),
                     "source": f"report_db:{panel.get('name', 'Design Assistant')}",
+                    "source_origin": "quartus_official_report",
+                    "guidance_class": "official_guidance",
                     "violations": violation_count,
                     "waived": int(numeric(first_field(fields, ("Waived",))) or 0),
                 }
             )
-    if design_panels:
+    if design_panels and design_format_recognized and design_rules:
         design_status = "violations" if any(item["violations"] > 0 for item in design_rules) else "pass"
+    elif design_panels:
+        design_status = "unrecognized-format"
+    elif report_db_available:
+        design_status = "not-run"
     else:
-        design_status = "unavailable-or-not-run"
+        design_status = "unavailable"
 
     fast_forward = []
     for panel in reports.get("fast_forward", []):
@@ -796,6 +824,8 @@ def normalized_quartus_guidance(reports: dict[str, Any]) -> dict[str, Any]:
                     "slack": first_field(fields, ("Slack",)),
                     "relationship": first_field(fields, ("Relationship",)),
                     "source": f"report_db:{panel.get('name', 'Fast Forward Summary')}",
+                    "source_origin": "quartus_official_report",
+                    "guidance_class": "official_guidance",
                 }
             )
 
@@ -810,6 +840,8 @@ def normalized_quartus_guidance(reports: dict[str, Any]) -> dict[str, Any]:
                     "limiting_reason": first_field(fields, ("Limiting Reason",)),
                     "recommendation": first_field(fields, ("Recommendation",)),
                     "source": f"report_db:{panel.get('name', 'Retiming Limit Summary')}",
+                    "source_origin": "quartus_official_report",
+                    "guidance_class": "official_guidance",
                 }
             )
     return {
@@ -818,13 +850,14 @@ def normalized_quartus_guidance(reports: dict[str, Any]) -> dict[str, Any]:
             "rules_checked": len(design_rules),
             "violations": [item for item in design_rules if item["violations"] > 0],
             "source": "report_db" if design_panels else None,
+            "format_recognized": bool(design_panels and design_format_recognized and design_rules),
         },
         "fast_forward": {
-            "status": "available" if reports.get("fast_forward") else "unavailable-or-not-run",
+            "status": "available" if reports.get("fast_forward") else "not-run" if report_db_available else "unavailable",
             "records": fast_forward,
         },
         "retiming_limits": {
-            "status": "available" if reports.get("retiming_limits") else "unavailable-or-not-run",
+            "status": "available" if reports.get("retiming_limits") else "not-run" if report_db_available else "unavailable",
             "records": retiming,
         },
     }
@@ -851,16 +884,28 @@ def build_health(
         if name and count:
             check_issues[name] = count
 
-    unconstrained = []
+    blocking_checks = {name: count for name, count in check_issues.items() if name in CHECK_TIMING_BLOCKING}
+    informational_checks = {
+        name: count for name, count in check_issues.items() if name in CHECK_TIMING_INFORMATIONAL
+    }
+    warning_checks = {
+        name: count
+        for name, count in check_issues.items()
+        if name not in CHECK_TIMING_BLOCKING and name not in CHECK_TIMING_INFORMATIONAL
+    }
+
+    unconstrained_by_key: dict[str, dict[str, Any]] = {}
     for panel in reports.get("unconstrained", []):
         for row in panel.get("rows", []):
             fields = row_as_fields(panel.get("columns", []), row)
             prop = first_field(fields, ("Property",))
-            if prop and sum(int(numeric(fields.get(key)) or 0) for key in ("Setup", "Hold")):
-                unconstrained.append(fields)
             status = first_field(fields, ("Status",))
-            if status and status.lower() != "constrained":
-                unconstrained.append(fields)
+            has_count = bool(prop and sum(int(numeric(fields.get(key)) or 0) for key in ("Setup", "Hold")))
+            has_bad_status = bool(status and status.lower() != "constrained")
+            if has_count or has_bad_status:
+                key = json.dumps(fields, sort_keys=True)
+                unconstrained_by_key[key] = fields
+    unconstrained = list(unconstrained_by_key.values())
 
     unsafe_transfers_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     for panel in reports.get("clock_transfers", []):
@@ -877,12 +922,15 @@ def build_health(
     unsafe_transfers = list(unsafe_transfers_by_key.values())
 
     constraints_status = "pass"
-    if check_issues or unconstrained or unsafe_transfers:
+    if blocking_checks or unconstrained or unsafe_transfers:
         constraints_status = "blocked"
         reasons.append(
-            f"timing constraints require review: check_timing={sum(check_issues.values())}, "
+            f"blocking timing constraints require review: check_timing={sum(blocking_checks.values())}, "
             f"unconstrained={len(unconstrained)}, unsafe_clock_transfers={len(unsafe_transfers)}"
         )
+    elif warning_checks:
+        constraints_status = "warning"
+        reasons.append(f"check_timing contains {sum(warning_checks.values())} non-blocking findings")
     elif not check_columns or not reports.get("unconstrained"):
         constraints_status = "warning"
         reasons.append("constraint health is incomplete; missing check_timing or unconstrained-path data")
@@ -902,9 +950,9 @@ def build_health(
         reasons.append("CDC report is unavailable; absence is not treated as clean")
 
     design = guidance.get("design_assistant", {})
-    design_status = design.get("status", "unavailable-or-not-run")
-    if design_status == "unavailable-or-not-run":
-        reasons.append("Design Assistant was not run or its Report DB panel is unavailable")
+    design_status = design.get("status", "unavailable")
+    if design_status in ("not-run", "unavailable", "unrecognized-format"):
+        reasons.append(f"Design Assistant status is {design_status}; absence or parse failure is not treated as clean")
     elif design_status == "violations":
         reasons.append(f"Design Assistant reports {len(design.get('violations', []))} violated rules")
 
@@ -931,13 +979,16 @@ def build_health(
     overall = "blocked" if "blocked" in (constraints_status, data_status) else "warning" if (
         "warning" in (constraints_status, cdc_status, data_status)
         or cdc_status == "unavailable"
-        or design_status in ("violations", "unavailable-or-not-run")
+        or design_status in ("violations", "not-run", "unavailable", "unrecognized-format")
     ) else "pass"
     return {
         "status": overall,
         "constraints": {
             "status": constraints_status,
             "check_timing": check_issues,
+            "blocking_check_timing": blocking_checks,
+            "warning_check_timing": warning_checks,
+            "informational_check_timing": informational_checks,
             "unconstrained_records": unconstrained,
             "unsafe_clock_transfers": unsafe_transfers,
         },
@@ -1526,7 +1577,7 @@ def build_issues(
         heterogeneous = "routing-limited" in classes and "logic-limited" in classes and max(ratios) - min(ratios) >= 0.30
         route_ratio = numeric(aggregate.get("average_route_ratio"))
         if heterogeneous:
-            primary_diagnosis = "MIXED_ROOT_CAUSE"
+            primary_diagnosis = "HETEROGENEOUS_DELAY"
         elif route_ratio is not None and route_ratio >= 0.60:
             primary_diagnosis = "ROUTING_LIMITED"
         elif route_ratio is not None and route_ratio <= 0.35:
@@ -1785,7 +1836,10 @@ def summarize(run_dir: Path) -> dict[str, Any]:
     }
 
     report_summary = selected_panel_summary(panels)
-    guidance = normalized_quartus_guidance(report_summary)
+    guidance = normalized_quartus_guidance(
+        report_summary,
+        report_db_available=(numeric(report_metadata.get("panel_count")) or 0) > 0,
+    )
     relevant_nodes = [
         node["identity"]
         for path in detailed_paths
@@ -2203,23 +2257,37 @@ def advice_action(
     action: str,
     why: str,
     evidence: list[str],
-    source: str,
-    confidence: float,
+    source_origin: str,
+    guidance_class: str,
+    diagnosis_confidence: float,
+    association_method: str,
+    association_confidence: float,
+    source_reference: str,
     quartus_tool: str,
-    validation_stage: str,
+    validation_snapshot: str,
 ) -> dict[str, Any]:
     return {
         "action": action,
         "why": why,
         "evidence": evidence,
-        "source": source,
-        "confidence": confidence,
+        "source_origin": source_origin,
+        "guidance_class": guidance_class,
+        "diagnosis_confidence": diagnosis_confidence,
+        "association_method": association_method,
+        "association_confidence": association_confidence,
+        "source_reference": source_reference,
         "quartus_tool": quartus_tool,
-        "validation_stage": validation_stage,
+        "validation_snapshot": validation_snapshot,
     }
 
 
-def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
+def build_advice(
+    summary: dict[str, Any],
+    design_stable: bool = False,
+    dse_slack_ratio_threshold: float = 0.05,
+) -> dict[str, Any]:
+    if not 0 < dse_slack_ratio_threshold < 1:
+        raise RuntimeError("DSE slack ratio threshold must be between 0 and 1")
     health = summary.get("health", {})
     blocked = health.get("status") == "blocked"
     records = []
@@ -2236,8 +2304,12 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         "Resolve or explicitly waive the reported timing-constraint and clock-transfer findings before using RTL timing advice.",
                         "Timing optimization is not trustworthy while paths may be missing clocks, unconstrained, or timed across unsafe asynchronous transfers.",
                         list(health.get("reasons", [])),
-                        "deterministic derived",
+                        "qclose_derived",
+                        "deterministic_derived",
                         1.0,
+                        "health-gate",
+                        1.0,
+                        "summary.health",
                         "Timing Analyzer: Check Timing, Unconstrained Paths, and Clock Transfers",
                         "final",
                     )
@@ -2271,8 +2343,12 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         optimization,
                         f"Quartus Fast Forward step {item.get('step', 'unknown')} for the same clock domain.",
                         [item.get("source", "Quartus Fast Forward")],
-                        "Quartus ground truth",
-                        0.95,
+                        "quartus_official_report",
+                        "official_guidance",
+                        confidence,
+                        "same-clock-domain",
+                        0.35,
+                        item.get("source", "Quartus Fast Forward"),
                         "Fast Forward Timing Closure Recommendations",
                         "retimed",
                     )
@@ -2286,10 +2362,14 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                             recommendation,
                             description or "Design Assistant correlates this rule violation to the issue anchor.",
                             [item.get("source", "Quartus Design Assistant")],
-                            "Quartus ground truth",
+                            "quartus_official_report",
+                            "official_guidance",
+                            confidence,
+                            item.get("match_method", "node-match"),
                             numeric(item.get("match_confidence")) or 0.0,
+                            item.get("source", "Quartus Design Assistant"),
                             "Design Assistant",
-                            "synthesis",
+                            "planned",
                         )
                     )
             for item in issue.get("contextual_evidence", {}).get("retiming_limits", []):
@@ -2301,8 +2381,12 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                             recommendation,
                             reason or "Quartus reports a retiming limit for the issue clock domain.",
                             [item.get("source", "Quartus Retiming Limit Summary")],
-                            "Quartus ground truth",
-                            0.95,
+                            "quartus_official_report",
+                            "official_guidance",
+                            confidence,
+                            "same-clock-domain",
+                            numeric(item.get("match_confidence")) or 0.35,
+                            item.get("source", "Quartus Retiming Limit Summary"),
                             "Fast Forward Timing Closure Recommendations / Retiming Limit Summary",
                             "retimed",
                         )
@@ -2313,8 +2397,12 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         "Inspect consumer placement and implement local registered control leaves or placement-aware duplication for the matched high-fanout anchor.",
                         "Routing delay plus node-level high-fanout evidence points to distribution cost; adding a pipeline is not the first action.",
                         evidence,
-                        "deterministic derived",
+                        "qclose_derived",
+                        "deterministic_derived",
                         confidence,
+                        "routing-plus-node-evidence",
+                        confidence,
+                        "issue metrics + high-fanout evidence",
                         "Chip Planner, Report Register Spread, Non-Global High Fan-Out Signals",
                         "routed",
                     )
@@ -2325,10 +2413,14 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         "Inspect the producer/consumer footprint and reduce physical spread before changing the logic function.",
                         "Matched register-spread evidence and a routing-dominated path indicate a placement/distribution problem.",
                         evidence,
-                        "deterministic derived",
+                        "qclose_derived",
+                        "deterministic_derived",
                         confidence,
+                        "routing-plus-node-evidence",
+                        confidence,
+                        "issue metrics + register-spread evidence",
                         "Chip Planner and Report Register Spread",
-                        "routed",
+                        "placed",
                     )
                 )
             if diagnosis == "LOGIC_LIMITED" and "DEEP_LOGIC" in contributors:
@@ -2337,22 +2429,30 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         "Restructure the matched cone with predecode, a balanced tree, or an elastic pipeline boundary while preserving throughput.",
                         "The validated delay split is logic-dominated and the sampled cone has deep logic.",
                         evidence,
-                        "deterministic derived",
+                        "qclose_derived",
+                        "deterministic_derived",
                         confidence,
+                        "logic-depth-rule",
+                        confidence,
+                        "validated delay split + logic depth",
                         "Report Logic Depth and Report Timing",
-                        "routed",
+                        "planned",
                     )
                 )
             if "RETIMING_RESTRICTED" in contributors and not any(
-                action["source"] == "Quartus ground truth" for action in actions
+                action["source_origin"] == "quartus_official_report" for action in actions
             ):
                 actions.append(
                     advice_action(
                         "Review the matched retiming-restriction rows and remove only the restriction that is valid to change.",
                         "A node-level retiming restriction overlaps the sampled issue, but qclose has no official node-specific fix text.",
                         evidence,
+                        "qclose_derived",
                         "heuristic",
                         min(confidence, 0.70),
+                        "node-level-retiming-restriction",
+                        min(confidence, 0.70),
+                        "retiming restriction evidence",
                         "Report Retiming Restrictions",
                         "retimed",
                     )
@@ -2366,8 +2466,12 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
                         "Inspect the matched RAM output/control boundary and preserve same-address forwarding while adding only the reported pipeline/retiming boundary.",
                         "A memory endpoint alone is context; this action is emitted because node-level pipelining or retiming evidence also overlaps the issue.",
                         evidence,
-                        "deterministic derived",
+                        "qclose_derived",
+                        "deterministic_derived",
                         min(confidence, 0.85),
+                        "memory-context-plus-node-evidence",
+                        min(confidence, 0.85),
+                        "pipelining/retiming evidence",
                         "Report Pipelining Information / Report Retiming Restrictions",
                         "retimed",
                     )
@@ -2388,6 +2492,8 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
 
     primary_clock_data = primary_clock(summary) or {}
     wns = numeric(primary_clock_data.get("collected_wns_ns"))
+    period = numeric(primary_clock_data.get("period_ns"))
+    slack_ratio = abs(wns) / period if wns is not None and period and period > 0 else None
     high_conf_structural = any(
         (numeric(issue.get("confidence", {}).get("overall")) or 0) >= 0.80
         and bool(issue.get("contributors"))
@@ -2397,7 +2503,10 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
         not blocked
         and not high_conf_structural
         and wns is not None
-        and -0.20 <= wns < 0
+        and wns < 0
+        and slack_ratio is not None
+        and slack_ratio <= dse_slack_ratio_threshold
+        and design_stable
     )
     return {
         "schema_version": SCHEMA_VERSION,
@@ -2406,12 +2515,15 @@ def build_advice(summary: dict[str, Any]) -> dict[str, Any]:
         "issues": records,
         "dse_ii": {
             "eligible": dse_eligible,
+            "design_stable_asserted": design_stable,
+            "slack_ratio": slack_ratio,
+            "slack_ratio_threshold": dse_slack_ratio_threshold,
             "reason": (
-                "Timing is close and no high-confidence structural issue is present; use DSE II only after RTL and constraints are stable."
+                "Timing is within the configured clock-period ratio, design stability was asserted, and no high-confidence structural issue is present."
                 if dse_eligible
-                else "Not recommended now: preflight is blocked, timing is not close, or a higher-confidence structural issue remains."
+                else "Not eligible: preflight is blocked, normalized slack is not close, a structural issue remains, or design stability was not asserted."
             ),
-            "source": "heuristic",
+            "guidance_class": "heuristic",
         },
     }
 
@@ -2451,9 +2563,12 @@ def render_advice(advice: dict[str, Any]) -> str:
                     "",
                     f"{index}. {action['action']}",
                     f"   - Why: {action['why']}",
-                    f"   - Source class: `{action['source']}`; confidence: `{format_number(action['confidence'], 2)}`",
+                    f"   - Source origin: `{action['source_origin']}`; guidance: `{action['guidance_class']}`",
+                    f"   - Association: `{action['association_method']}`; confidence: "
+                    f"`{format_number(action['association_confidence'], 2)}`",
+                    f"   - Diagnosis confidence: `{format_number(action['diagnosis_confidence'], 2)}`",
                     f"   - Quartus view: {action['quartus_tool']}",
-                    f"   - Minimum validation stage: `{action['validation_stage']}`",
+                    f"   - Minimum validation snapshot: `{action['validation_snapshot']}`",
                 ]
             )
     lines.extend(
@@ -2462,22 +2577,30 @@ def render_advice(advice: dict[str, Any]) -> str:
             "## DSE II gate",
             "",
             f"- Eligible: **{advice.get('dse_ii', {}).get('eligible', False)}**",
+            f"- Design stable asserted: **{advice.get('dse_ii', {}).get('design_stable_asserted', False)}**",
+            f"- Normalized slack: `{format_number(advice.get('dse_ii', {}).get('slack_ratio'), 3)}` "
+            f"(threshold `{format_number(advice.get('dse_ii', {}).get('slack_ratio_threshold'), 3)}`)",
             f"- {advice.get('dse_ii', {}).get('reason', '')}",
             "",
-            "> Source classes: `Quartus ground truth` is copied from an existing Quartus report; "
-            "`deterministic derived` is a fixed rule over validated metrics; `heuristic` requires engineering review.",
+            "> `source_origin=quartus_official_report` means the text came from Quartus. "
+            "It does not imply that its association with this issue is strong; inspect `association_method` and "
+            "`association_confidence`. Derived and heuristic guidance comes from qclose rules.",
             "",
         ]
     )
     return "\n".join(lines)
 
 
-def advise(run_dir: Path) -> dict[str, Any]:
+def advise(
+    run_dir: Path,
+    design_stable: bool = False,
+    dse_slack_ratio_threshold: float = 0.05,
+) -> dict[str, Any]:
     summary_path = run_dir / "summary.json"
     summary = read_json(summary_path)
     if not isinstance(summary, dict):
         summary = summarize(run_dir)
-    result = build_advice(summary)
+    result = build_advice(summary, design_stable, dse_slack_ratio_threshold)
     write_json(run_dir / "advice.json", result)
     (run_dir / "advice.md").write_text(render_advice(result), encoding="utf-8")
     return result
@@ -2556,7 +2679,7 @@ def evidence_count(issue: dict[str, Any]) -> int:
 
 
 def issue_anchor(issue: dict[str, Any]) -> dict[str, Any]:
-    """Read schema-v4 anchors while keeping old summaries comparable."""
+    """Read schema-v5 anchors while keeping old summaries comparable."""
     return issue.get("issue_anchor") or issue.get("root_cause") or {}
 
 
@@ -2976,7 +3099,7 @@ def collect(args: argparse.Namespace) -> Path:
         )
 
     summarize(run_dir)
-    advise(run_dir)
+    advise(run_dir, args.design_stable, args.dse_slack_ratio_threshold)
     previous = run_directories(output_root)
     previous = [path for path in previous if path != run_dir]
     if previous:
@@ -3014,12 +3137,20 @@ def parse_args() -> argparse.Namespace:
         default="final",
         help="analyze an existing Quartus database snapshot; does not run Fitter or compilation",
     )
+    collect_parser.add_argument(
+        "--design-stable",
+        action="store_true",
+        help="engineer assertion required before qclose can mark DSE II eligible",
+    )
+    collect_parser.add_argument("--dse-slack-ratio-threshold", type=float, default=0.05)
 
     summarize_parser = subparsers.add_parser("summarize", help="regenerate summary files for one collection")
     summarize_parser.add_argument("run_dir", type=Path)
 
     advise_parser = subparsers.add_parser("advise", help="generate deterministic advice.json and advice.md")
     advise_parser.add_argument("run_dir", type=Path)
+    advise_parser.add_argument("--design-stable", action="store_true")
+    advise_parser.add_argument("--dse-slack-ratio-threshold", type=float, default=0.05)
 
     compare_parser = subparsers.add_parser("compare", help="compare two timing collections")
     compare_parser.add_argument("old", type=Path)
@@ -3045,7 +3176,7 @@ def main() -> int:
             summarize(args.run_dir.resolve())
             print(args.run_dir.resolve() / "summary.md")
         elif args.command == "advise":
-            advise(args.run_dir.resolve())
+            advise(args.run_dir.resolve(), args.design_stable, args.dse_slack_ratio_threshold)
             print(args.run_dir.resolve() / "advice.md")
         elif args.command == "compare":
             output = compare_summaries(args.old.resolve(), args.new.resolve())
