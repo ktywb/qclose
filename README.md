@@ -72,6 +72,25 @@ Regenerate one run's summary:
 python3 quartus_timing_analyze.py summarize logs/timing-analysis/<run>
 ```
 
+Show the data-path skeletons behind the Worst setup paths table (or select its
+1-based row number):
+
+```sh
+python3 path_skeleton.py logs/timing-analysis/<run>
+python3 path_skeleton.py logs/timing-analysis/<run> --rank 6
+python3 path_skeleton.py logs/timing-analysis/<run> --rank 6 --details
+python3 path_skeleton.py logs/timing-analysis/<run> --rank 6 --routing
+```
+
+This reads the matching `summary.json` and `detailed_paths.jsonl` in the same
+directory. It omits clock-tree and anonymous routing nodes, groups adjacent
+technology cells with the same signal name, and retains RAM port names. Rows
+without collected detailed points are reported explicitly; recollect with a
+larger `--detailed-paths` value to inspect those rows. Node names identify
+fitted logic, not guaranteed Scala source expressions. `--details` retains the
+original cell/pin names, indices, cumulative delays, and fanout; `--routing`
+also includes physical routing points. Both omit the launch clock tree.
+
 Generate deterministic advice from an existing summary:
 
 ```sh
