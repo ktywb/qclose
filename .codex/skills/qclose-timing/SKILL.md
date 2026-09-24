@@ -17,7 +17,6 @@ existing evidence
   -> integration/retention
 ```
 
-
 Before running qclose commands, resolve its repository root once:
 
    ```sh
@@ -45,7 +44,7 @@ Before running qclose commands, resolve its repository root once:
 
 5. **Analyze a path family, not only rank #1.** Use repeated launch/capture families, hierarchy, operator family, issue anchors, and delay character. A single worst path can be seed-specific.
 
-6. **Inspect the fitted path.** 
+6. **Inspect the fitted path.**
 
    Start with logical/technology detail:
 
