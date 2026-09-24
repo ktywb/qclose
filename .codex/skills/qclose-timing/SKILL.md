@@ -29,7 +29,7 @@ Before running qclose commands, resolve its repository root once:
 
 1. **Reuse existing evidence first.** Prefer an existing `logs/timing-analysis/<run>/` collection. Do not recompile only to reproduce evidence already available.
 
-2. **Read health before timing-driven design advice.** If health is blocked by constraint or data-quality findings, resolve or explicitly waive those findings first. Changes that directly correct the reported constraint or data-quality problem are allowed; defer unrelated RTL/QSF/placement timing optimizations until health is no longer blocked. Missing stage-specific evidence is not a clean result.
+2. **Read health before timing-driven design advice.** If health is blocked by constraint or data-quality findings, resolve or explicitly waive those findings first. Changes that directly correct the reported constraint or data-quality problem are allowed; defer unrelated RTL/QSF/SDC/placement timing optimizations until health is no longer blocked. Missing stage-specific evidence is not a clean result.
 
 3. **Check comparability before attributing a regression or improvement.** Confirm source fingerprint, snapshot, requested clock, corner, period, sampling scope, and relevant Quartus/project settings. Different source fingerprints prove different source states, not which source change caused the delta.
 
@@ -190,7 +190,7 @@ Validation
 
 ## Stop conditions
 
-Do not propose a new timing-driven RTL/QSF/placement optimization yet when:
+Do not propose a new timing-driven RTL/QSF/SDC/placement optimization yet when:
 
 - health is blocked by an unresolved constraint or data-quality finding, unless the proposed change directly resolves that blocking finding;
 - the suspected root cause has only weak hierarchy correlation;
