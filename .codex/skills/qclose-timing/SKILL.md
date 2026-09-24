@@ -124,15 +124,23 @@ validation snapshot:
 success criteria:
 ```
 
-Evaluate two separate outcomes:
+Evaluate three separate outcomes:
 
 ```text
+functional validation:
+  required tests/properties pass and the functional invariant is preserved
+
 structural validation:
   intended path family/topology changed as predicted
 
 retention/sign-off:
-  final timing is neutral or better in an appropriate controlled comparison A structurally validated experiment can still be rejected for final integration if the replacement bottleneck or placement effect makes overall timing worse.
+  final timing is neutral or better in an appropriate controlled comparison
 ```
+
+Treat these outcomes independently. A structurally validated experiment may
+still be rejected for integration if it fails functional validation or if a
+replacement bottleneck, placement effect, or seed-stable timing regression
+makes overall timing worse.
 
 ## Output contract
 
