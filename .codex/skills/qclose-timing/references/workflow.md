@@ -253,7 +253,54 @@ i13310 == scoredMeta mux
 
 unless Quartus or generated-netlist evidence proves it.
 
-## 9. Delay interpretation
+## 9. Bottleneck classification
+
+Classify from measured post-fit evidence, not from RTL appearance alone.
+
+### Source-fanout dominated
+
+Typical evidence:
+
+- large launch fanout;
+- disproportionate first-hop routing;
+- shallow downstream logic;
+- fitter duplication absent or ineffective.
+
+Before proposing an RTL duplicate, inspect accepted Quartus fitter
+duplication and require evidence for a distinct consumer-local region.
+
+### Deep control cone
+
+Typical evidence:
+
+- many logic levels;
+- mux/reduction/branch dependency;
+- several medium routing hops;
+- source replication does not materially shorten the path.
+
+Prefer architectural shortening such as predecode, look-ahead,
+or compute-candidates-before-select when semantics permit.
+
+### Wide-select/control-fanout dominated
+
+Typical evidence:
+
+- a narrow control result fans into many wide mux/select destinations;
+- select routing dominates more than payload computation.
+
+Consider separating narrow control recurrence from wide payload movement.
+
+### Routing/locality dominated
+
+Typical evidence:
+
+- high routing fraction;
+- repeated long H/V resources;
+- register/hierarchy spread agrees with routed paths.
+
+Attempt architectural localization before hard floorplanning.
+
+## 10. Delay interpretation
 
 Look at where the time is spent.
 
@@ -272,7 +319,7 @@ It is a deep dependency with enough placement/routing exposure that architectura
 
 If the first source-to-first-LUT hop is only ~0.28 ns while the path is 2.8 ns, source register duplication cannot plausibly remove the whole problem.
 
-## 10. Quartus automatic duplication
+## 11. Quartus automatic duplication
 
 Before recommending an RTL copy, inspect fitter duplication.
 
@@ -284,7 +331,7 @@ If Quartus already accepted several physical duplicates of the source register:
 
 Manual copies make sense only when there is evidence for consumer-local ownership that fitter is not achieving.
 
-## 11. Control/data separation
+## 12. Control/data separation
 
 A useful high-frequency pattern is:
 
@@ -302,7 +349,7 @@ if the two consumers can be safely separated.
 
 But duplication must correspond to actual physical consumer regions. A duplicate that still drives two distant regions is not local.
 
-## 12. Look-ahead transformation
+## 13. Look-ahead transformation
 
 For a path:
 
@@ -340,7 +387,7 @@ It can shorten a control path without adding throughput latency.
 
 Validate that the new candidate computations do not create a worse path from an upstream recurrence.
 
-## 13. Single-variable experiment record
+## 14. Single-variable experiment record
 
 Before editing, write:
 
@@ -368,7 +415,7 @@ Example success criteria:
 - final multi-seed Fmax is neutral or better.
 ```
 
-## 14. Failure interpretation
+## 15. Failure interpretation
 
 ### Fmax worse, old path gone
 
@@ -395,7 +442,7 @@ The transformation may be semantically correct but timing-architecturally incomp
 
 Optimize the new proven path, not the old hypothesis.
 
-## 15. When to use multi-seed
+## 16. When to use multi-seed
 
 Use multiple controlled seeds when:
 
@@ -406,7 +453,7 @@ Use multiple controlled seeds when:
 
 Do not spend multi-seed compile time before proving that the intended topology changed.
 
-## 16. Escalation to floorplanning
+## 17. Escalation to floorplanning
 
 Only after repeated routed evidence shows a stable locality problem:
 
@@ -416,7 +463,7 @@ Only after repeated routed evidence shows a stable locality problem:
 
 Prefer module/consumer-aware locality over arbitrary hard placement.
 
-## 17. What the final analysis should say
+## 18. What the final analysis should say
 
 A strong analysis clearly separates:
 
