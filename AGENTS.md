@@ -12,6 +12,17 @@ Agents working in this repository must preserve that role:
 
 qclose is **not** an autonomous RTL optimizer. Do not make qclose silently mutate a user's RTL, QSF, SDC, project settings, or Quartus database.
 
+## Mandatory skill usage
+
+- Use `$qclose-timing` for Quartus timing-closure diagnosis, WNS/Fmax
+  regressions, critical-path or path-family analysis, routed/retimed
+  evidence, fitted-node-to-source mapping, and validation of RTL timing
+  experiments.
+- Before proposing RTL, QSF, SDC, placement, or retiming changes for a
+  timing problem, follow the evidence workflow in `$qclose-timing`.
+- Do not bypass the skill by reasoning directly from a headline WNS/Fmax
+  value when a qclose collection or Quartus database is available.
+  
 ## Source of truth
 
 Treat evidence in this order:
