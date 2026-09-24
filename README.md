@@ -138,6 +138,34 @@ Run all synthetic and real-data regression tests:
 python3 -m unittest discover -s tests -v
 ```
 
+## Agent / Codex timing-closure workflow
+
+This repository includes a repo-local Codex skill:
+
+```text
+.codex/skills/qclose-timing/SKILL.md
+```
+
+Use it for evidence-first Quartus timing-closure analysis. The skill covers:
+
+- snapshot selection;
+- health and run-comparability checks;
+- path-family analysis;
+- `path_skeleton.py`;
+- fitted-node -> generated RTL -> Chisel/Scala mapping;
+- Hyper-Retiming and fitter-duplication interpretation;
+- single-variable RTL experiments;
+- structural validation before final Fmax conclusions.
+
+Deep references:
+
+```text
+.codex/skills/qclose-timing/references/workflow.md
+.codex/skills/qclose-timing/references/chisel-quartus-mapping.md
+```
+
+Repository-development rules for agents are in `AGENTS.md`.
+
 ## Timing Closure Workflow
 
 1. Collect the earliest existing snapshot that can answer the current
