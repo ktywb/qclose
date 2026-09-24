@@ -1,485 +1,439 @@
-# qclose Agent Timing-Closure Workflow
+# qclose Deep Timing Analysis Reference
 
-This document is the deep reference behind the `qclose-timing` skill.
+This is the **conditional FPGA timing methodology** behind `qclose-timing`.
 
-## 1. Goal
+The mandatory execution order, health gate, snapshot-selection table, commands, experiment/output contracts, and stop conditions are in `../SKILL.md`. Do not duplicate them here. Read only the sections needed for the active bottleneck.
 
-The agent's job is not to produce generic timing suggestions. It is to reduce uncertainty around a measured Quartus timing failure until one narrowly-scoped experiment is justified.
+## 1. Evidence confidence
 
-The central loop is:
+Keep physical facts, logical dependencies, correlations, and hypotheses separate.
 
-```text
-measurement
-  -> path family
-  -> fitted dependency
-  -> generated RTL
-  -> source architecture
-  -> one modification
-  -> structural validation
-  -> sign-off comparison
-```
+### Tier A — direct post-fit / Quartus evidence
 
-## 2. Evidence contract
+Examples: exact launch/capture nodes, detailed path points, incremental/cumulative delay, logic levels, fitted cell/pin identities, routing resources, path-local fanout, Fitter Duplication Summary, retiming restrictions, physical spread/location reports.
 
-### Tier A - direct post-fit evidence
+Tier A supports strong claims about the implemented design.
 
-Examples:
+### Tier B — generated RTL dependency
 
-- exact setup path;
-- incremental and cumulative point delay;
-- fitted node and pin identities;
-- routing resources;
-- fanout on the actual path;
-- accepted fitter duplication;
-- retiming restriction/report.
+Generated Verilog/SystemVerilog supports claims about the functional dependency Quartus received after front-end lowering. For Chisel/CIRCT it is usually the best bridge between fitted nodes and Scala.
 
-These support strong physical claims.
+### Tier C — source RTL / Chisel / Scala
 
-### Tier B - generated RTL
+Source establishes intended architecture and semantics. It does not establish post-fit placement, routing, replication, or retiming.
 
-Generated Verilog/SystemVerilog supports functional dependency claims after front-end lowering.
+### Tier D — qclose correlation
 
-It is especially important for Chisel/CIRCT designs because Quartus sees generated RTL rather than Scala directly.
-
-### Tier C - source RTL / Chisel / Scala
-
-Source code explains architecture and intended semantics.
-
-It does not by itself prove how Quartus mapped or retimed the logic.
-
-### Tier D - qclose correlation
-
-Examples:
-
-- high-fanout association;
-- register spread;
-- route-pressure association;
-- issue anchor;
-- secondary anchors.
-
-These help prioritize investigation but must respect match confidence.
-
-### Tier E - architectural inference
-
-Examples:
-
-- “this copy is probably physically pulled toward two consumer regions”;
-- “this mux select is likely the next bottleneck”.
-
-Useful, but label as inference until A-C support it.
-
-## 3. Run compatibility checklist
-
-Before comparing two runs, establish:
+Interpret match strength conservatively:
 
 ```text
-same target design intent?
-same target clock?
-same snapshot?
-same corner interpretation?
-same source fingerprint or intentionally changed source?
-same collection/sampling scope?
-same major Quartus settings?
+exact-node / validated replica base-node -> strong
+normalized-node                           -> medium
+same-hierarchy                            -> contextual only
 ```
 
-If source fingerprint differs and the exact source diff is unknown:
+`issue_anchor` and `secondary_anchors` organize evidence; they are not automatically root causes.
 
-```text
-"timing changed between two different source states"
-```
+### Tier E — engineering inference
 
-is valid.
+Use inference to choose the next experiment, but label it as inference until stronger evidence exists.
 
-```text
-"change X caused all of the delta"
-```
+## 2. Path-family reasoning
 
-is not yet valid.
+Do not optimize only the single worst row. A useful family is a repeated physical/functional dependency that survives incidental differences such as PE/bank index, bit index, fitter duplicate suffix, small destination variation, path rank, or timing corner.
 
-## 4. Health gate
-
-A timing diagnosis is subordinate to constraint correctness.
-
-Blocked examples:
-
-- unconstrained endpoints;
-- invalid/missing generated clocks;
-- suspicious clock relationships;
-- data-quality/collection inconsistency.
-
-An agent should not “optimize” RTL around a constraint bug.
-
-## 5. Snapshot selection
-
-### planned
-
-Use for:
-
-- coarse logic depth;
-- obvious combinational topology;
-- constraint sanity that is already visible.
-
-Do not use for final route claims.
-
-### placed
-
-Use for:
-
-- register/hierarchy spread;
-- whether replicated logic is geographically localized;
-- large placement separation.
-
-### routed
-
-Use for:
-
-- actual route delay;
-- H/V routing-resource chains;
-- long interconnect;
-- path-level route-vs-cell breakdown.
-
-### retimed
-
-Use for:
-
-- Hyper-Retiming behavior;
-- moved register boundaries;
-- retiming restrictions.
-
-### final
-
-Use for:
-
-- final sign-off;
-- final Fmax;
-- final Report DB panels;
-- final comparison after the structural experiment is understood.
-
-## 6. Path-family method
-
-Do not optimize rank #1 in isolation.
-
-Group by repeated topology. Useful grouping keys include:
+Useful grouping dimensions:
 
 ```text
 launch base register
 capture base register
-hierarchy
-operator family
-issue anchor
-secondary anchors
-route/cell character
+module / PE / bank role
+generated operator family
+issue anchor / secondary anchors
+logic depth
+route-vs-cell character
+retiming / duplication markers
 ```
 
-Strong family evidence:
+Strong evidence:
 
 ```text
-same feedback recurrence appears in many PEs/banks
+same feedback topology across several banks
+same forwarding/control cone across several PEs
+several paths launching from replicas of the same base register
 ```
 
-Weak family evidence:
+Weak evidence:
 
 ```text
-several failures merely share the same module hierarchy
+same hierarchy only
+one similarly named synthesized operator
 ```
 
-## 7. `path_skeleton.py`
+Repeated families support architectural conclusions better than a single seed-local path.
 
-Start with:
+## 3. Delay interpretation
 
-```sh
-python3 path_skeleton.py RUN --rank N --details
-```
-
-Use `--routing` only if physical geography is part of the question.
-
-Read the sequence as fitted logic, not source syntax.
-
-Important names:
+Decompose the path before choosing an optimization:
 
 ```text
-~Duplicate / ~DUPLICATE
+data delay
+logic levels
+cell delay
+local-interconnect delay
+fabric-routing delay
+launch-to-first-logic route
+largest routing hops
+fanout at actual path points
+clock skew
 ```
 
-Usually indicate fitter/synthesis replication. Inspect duplication reports before manually duplicating the RTL register.
+### Logic-dominated
 
-```text
-~RTM / ~RTMUX
-```
+Many logic levels, substantial cell delay, no unusually long routes. Prefer topology reduction, predecode, look-ahead, or arithmetic restructuring.
 
-Indicate retiming/mux structures. The source register boundary may have moved.
+### Routing-dominated
 
-```text
-iNNNN
-```
+High route fraction, long/repeated H/V resources, physical spread consistent with the path, modest logic depth. Prefer localization or consumer partitioning before adding logic.
 
-Opaque synthesized cell identity. Do not guess the Scala expression from the number.
+### Mixed deep-and-routed cone
 
-```text
-LessThan_N / add_N / reduce_*
-```
+Many levels plus many medium routing hops. This is common in state/control recurrences: each logic level creates another placement/routing boundary. Architectural shortening is usually more promising than shaving one LUT or one first-hop route.
 
-Generated operator families. Use generated RTL/cross-probe to map them.
+### First-hop sanity check
 
-## 8. Mapping a fitted path in a Chisel design
+If the whole path is about 2.8 ns but launch-to-first-logic routing is about 0.28 ns, source localization alone cannot remove most of the path. A manual launch-register copy is unlikely to be the primary fix unless it also changes downstream topology.
 
-Suppose the path skeleton is:
+## 4. Bottleneck classes
 
-```text
-lastCommitHashReg
- -> i13310
- -> i13363
- -> i13365
- -> opFillReg
- -> add_0
- -> opInputValidBytesReg
- -> LessThan_1
-```
+Classify from measured post-fit evidence, not RTL appearance.
 
-The correct process is:
+### 4.1 Source-fanout dominated
 
-1. identify stable names: `lastCommitHashReg`, `opFillReg`, `opInputValidBytesReg`;
-2. inspect generated SV declarations and assignments;
-3. find the only source dependency that links those anchors;
-4. verify the end operator in generated SV;
-5. map back to Scala;
-6. leave opaque fitted cells grouped inside the proven functional cone unless exact cross-probe is available.
+Evidence:
 
-Do not force an unsupported one-to-one mapping such as:
-
-```text
-i13310 == scoredMeta mux
-```
-
-unless Quartus or generated-netlist evidence proves it.
-
-## 9. Bottleneck classification
-
-Classify from measured post-fit evidence, not from RTL appearance alone.
-
-### Source-fanout dominated
-
-Typical evidence:
-
-- large launch fanout;
+- high launch fanout;
 - disproportionate first-hop routing;
 - shallow downstream logic;
-- fitter duplication absent or ineffective.
+- separable physical consumer regions;
+- fitter replication absent or ineffective.
 
-Before proposing an RTL duplicate, inspect accepted Quartus fitter
-duplication and require evidence for a distinct consumer-local region.
+Possible experiment: consumer-local register replication.
 
-### Deep control cone
+Before doing it, inspect automatic duplication. A logical duplicate that still serves multiple distant regions is not local.
 
-Typical evidence:
+### 4.2 Deep control cone
 
-- many logic levels;
-- mux/reduction/branch dependency;
+Evidence:
+
+- branch/mux/reduction chain;
+- high logic depth;
 - several medium routing hops;
-- source replication does not materially shorten the path.
+- source replication does not remove the dependency;
+- path represents a state/hazard decision.
 
-Prefer architectural shortening such as predecode, look-ahead,
-or compute-candidates-before-select when semantics permit.
+Possible experiments:
 
-### Wide-select/control-fanout dominated
+```text
+predecode
+look-ahead
+precompute next-cycle control
+narrow-control extraction
+compute candidates before selection
+```
 
-Typical evidence:
+### 4.3 Wide-select / control-fanout dominated
 
-- a narrow control result fans into many wide mux/select destinations;
-- select routing dominates more than payload computation.
+Evidence:
 
-Consider separating narrow control recurrence from wide payload movement.
+- narrow control drives many wide mux bits;
+- control net spans a large datapath;
+- select routing/fanout dominates payload computation.
 
-### Routing/locality dominated
+Possible experiments:
 
-Typical evidence:
+```text
+separate narrow recurrence/control from wide payload
+localize control copies to real consumer regions
+move candidate computation ahead of a wide select
+```
+
+### 4.4 Routing/locality dominated
+
+Evidence:
 
 - high routing fraction;
 - repeated long H/V resources;
-- register/hierarchy spread agrees with routed paths.
+- spread reports agree with routed paths;
+- similar long routes recur across seeds or instances.
 
-Attempt architectural localization before hard floorplanning.
+Prefer architectural localization, bank/consumer ownership changes, or interface-stage boundaries before hard floorplanning.
 
-## 10. Delay interpretation
+## 5. Automatic duplication
 
-Look at where the time is spent.
+Before manual RTL replication, inspect fitter/synthesis duplication.
 
-Example:
+If Quartus already accepted several physical duplicates:
 
-```text
-total data delay 2.80 ns
-route          1.73 ns
-logic cell     0.88 ns
-levels         9
-```
+- fanout reduction is already occurring;
+- a new logical copy must serve a demonstrably different consumer partition;
+- expected benefit must exceed what Quartus already does;
+- even trivial extra state can perturb placement.
 
-This is neither “just routing” nor “just logic”.
-
-It is a deep dependency with enough placement/routing exposure that architectural shortening is usually more promising than micro-tuning one LUT.
-
-If the first source-to-first-LUT hop is only ~0.28 ns while the path is 2.8 ns, source register duplication cannot plausibly remove the whole problem.
-
-## 11. Quartus automatic duplication
-
-Before recommending an RTL copy, inspect fitter duplication.
-
-If Quartus already accepted several physical duplicates of the source register:
-
-- automatic fanout reduction is already active;
-- a new logical copy must justify a distinct consumer partition;
-- otherwise it can perturb placement without shortening the dependency.
-
-Manual copies make sense only when there is evidence for consumer-local ownership that fitter is not achieving.
-
-## 12. Control/data separation
-
-A useful high-frequency pattern is:
+A launch from:
 
 ```text
-narrow control recurrence
-wide payload datapath
+fooReg[...]~Duplicate_*
 ```
 
-Do not make a narrow control register drive both:
+is direct evidence of physical replication.
 
-- a feedback recurrence; and
-- a geographically large wide datapath
+Manual duplication is justified only when existing replicas do not align with the desired consumer-local ownership.
 
-if the two consumers can be safely separated.
+## 6. Control/data separation
 
-But duplication must correspond to actual physical consumer regions. A duplicate that still drives two distant regions is not local.
+High-frequency FPGA designs often benefit from separating:
 
-## 13. Look-ahead transformation
+```text
+narrow state/control recurrence
+```
 
-For a path:
+from:
+
+```text
+wide payload/datapath movement
+```
+
+A narrow state becomes problematic when it simultaneously owns a tight recurrence and geographically dispersed wide consumers.
+
+A valid split should create meaningful physical ownership, for example:
+
+```text
+recurrence/control
+payload/address/select
+```
+
+while preserving semantics. Do not duplicate control merely to reduce a reported fanout number.
+
+## 7. Look-ahead and compute-before-select
+
+A common critical topology is:
 
 ```text
 state
- -> select
- -> arithmetic
- -> compare
- -> next control register
+  -> select
+  -> arithmetic
+  -> compare/classify
+  -> next control
 ```
 
-consider whether semantics allow:
+When candidate states are few and inputs are available, consider:
 
 ```text
-candidate A arithmetic/compare
-candidate B arithmetic/compare
-candidate C arithmetic/compare
- -> select narrow precomputed result
- -> register
+candidate A -> arithmetic/classify --\
+candidate B -> arithmetic/classify ----> select narrow result -> register
+candidate C -> arithmetic/classify --/
 ```
 
-This converts:
+This changes:
 
 ```text
 select -> compute
 ```
 
-into:
+to:
 
 ```text
-compute in parallel -> select narrow result
+compute candidates in parallel -> select narrow result
 ```
 
-It can shorten a control path without adding throughput latency.
+Potential benefits:
 
-Validate that the new candidate computations do not create a worse path from an upstream recurrence.
+- arithmetic/comparison leaves the select-controlled path;
+- late mux width shrinks;
+- independent candidate logic gains placement freedom;
+- II=1 and latency can remain unchanged when precomputation occurs in the existing producer stage.
 
-## 14. Single-variable experiment record
+Risks:
 
-Before editing, write:
+- duplicated arithmetic costs area;
+- an upstream candidate may create a new recurrence;
+- extra logic can worsen placement;
+- retiming can move the apparent boundary again.
+
+Validate the replacement path family, not only Fmax.
+
+## 8. Hyper-Retiming implications
+
+An RTL-visible register is not guaranteed to remain the post-fit timing boundary at the same location.
+
+Consequences:
+
+- source-stage diagrams are insufficient for post-fit diagnosis;
+- `~RTM`, `~RTMUX`, `combout`, Hyper-Register-related nodes, or a path crossing source-register names require fitted interpretation;
+- adding another RTL register is not automatically equivalent to creating a new physical boundary;
+- reset/enable/clock-control/semantic constraints can limit retiming freedom.
+
+For exact fitted -> generated-SV -> Chisel mapping, use `chisel-quartus-mapping.md`.
+
+## 9. Single-variable timing experiments
+
+The objective is causality, not merely a faster compile.
+
+Define:
 
 ```text
-Experiment:
-  baseline:
-  target path family:
-  measured problem:
-  change:
-  unchanged:
-  expected old topology:
-  expected new topology:
-  functional invariant:
-  validation snapshot:
-  success criteria:
+baseline run
+target path family
+measured physical problem
+one RTL/QSF/SDC/placement change
+functional invariant
+expected old topology
+expected replacement topology
+validation snapshot
+success criteria
 ```
 
-Example success criteria:
+Good experiments:
 
 ```text
-- old launch->capture family is absent from top sampled failures;
-- new path terminates at the intended look-ahead register;
-- no new equal-or-worse recurrence appears;
-- route percentage does not regress materially;
-- final multi-seed Fmax is neutral or better.
+separate one measured consumer class
+precompute one late comparator/control result
+replace one select-before-compute cone
+remove one measured recurrence level
 ```
 
-## 15. Failure interpretation
-
-### Fmax worse, old path gone
-
-Do not immediately call the idea wrong.
-
-Check:
-
-- new bottleneck family;
-- global route/cell character;
-- placement perturbation;
-- seed sensitivity.
-
-This can be bottleneck migration.
-
-### Fmax better, old path unchanged
-
-Do not call the intended structural optimization successful.
-
-The improvement may be seed/placement luck.
-
-### old path shorter but a new direct bypass appears
-
-The transformation may be semantically correct but timing-architecturally incomplete.
-
-Optimize the new proven path, not the old hypothesis.
-
-## 16. When to use multi-seed
-
-Use multiple controlled seeds when:
-
-- structural validation is already positive;
-- the final Fmax delta is small;
-- route-dominated placement variation is large;
-- deciding whether to retain a change.
-
-Do not spend multi-seed compile time before proving that the intended topology changed.
-
-## 17. Escalation to floorplanning
-
-Only after repeated routed evidence shows a stable locality problem:
-
-- repeated long routes;
-- same hierarchy/consumer geometry;
-- architectural localization has been exhausted or is impossible.
-
-Prefer module/consumer-aware locality over arbitrary hard placement.
-
-## 18. What the final analysis should say
-
-A strong analysis clearly separates:
+Poor experiments:
 
 ```text
-Proven:
-- direct timing/report/generated-RTL facts.
+edit unrelated modules together
+change RTL and floorplan together
+change global synthesis settings and RTL together
+add several speculative register copies
+```
 
-Strongly supported:
-- functional-cone mapping from fitted anchors to generated RTL.
+## 10. Interpreting outcomes
+
+### Fmax worse, intended old path gone
+
+Do not immediately reject the structural idea. Inspect the replacement family, whether it is a consequence of the change, global delay character, placement perturbation, and seed sensitivity. This can be normal bottleneck migration.
+
+### Fmax better, intended old path unchanged
+
+Do not claim the intended optimization worked. Improvement may be placement/seed variation.
+
+### Old path shorter, new direct bypass appears
+
+The original hypothesis may be correct but incomplete. The new fitted dependency is now stronger evidence than the old theory.
+
+### Path changed as predicted, final delta is small
+
+This is the point where controlled multi-seed becomes useful.
+
+## 11. Multi-seed methodology
+
+Use multiple controlled seeds only after the intended topology change is verified and placement sensitivity plausibly dominates the remaining delta.
+
+Keep RTL, constraints, device, Quartus version, and relevant project settings fixed.
+
+Compare more than the single best seed:
+
+```text
+median Fmax / WNS
+spread
+worst seed
+best seed
+dominant path family
+```
+
+Do not spend multi-seed compile time before structural validation.
+
+## 12. DSE
+
+Use DSE only when:
+
+- constraints are healthy;
+- RTL/constraints are stable;
+- no high-confidence structural bottleneck remains;
+- timing is close enough that search/placement variation is plausibly the limiter.
+
+DSE is not a substitute for understanding a repeated recurrence, deep-control cone, or routing-locality problem. DSE eligibility is an optimization-search recommendation, not root-cause evidence.
+
+## 13. Floorplanning escalation
+
+Escalate to placement constraints only after repeated routed evidence shows a stable locality problem.
+
+Prerequisites:
+
+- the same locality family repeats;
+- placed/routed evidence agrees;
+- the functional architecture already has sensible locality;
+- the proposed region matches resource needs and FPGA macro-architecture;
+- the constraint is unlikely merely to move the bottleneck.
+
+Prefer:
+
+```text
+module/consumer-aware locality
+soft or coarse regional guidance
+resource-aware boundaries
+```
+
+before fine-grained hard placement. Over-constraining can reduce fitter freedom and repeatability.
+
+## 14. FPGA architecture principles
+
+Apply these only when measured evidence supports them.
+
+### Shorten dependencies, not just source nets
+
+A path with many logic levels and many medium routes is usually improved more by removing dependency levels than by shaving a small first-hop route.
+
+### Narrow late control
+
+Late 1-bit/small control decisions are easier to place and route than late wide-state selection. Prefer early wide computation and late narrow selection when semantics and area allow.
+
+### Preserve physical freedom
+
+Extra pipeline stages, `dont_touch`, preserve directives, forced duplicates, and hard regions can reduce fitter freedom. Add them only to solve a measured problem.
+
+### Respect device structure
+
+Agilex timing depends on LAB/ALM locality, sector structure, embedded-memory/DSP placement, and Hyper-Registers. Architectural boundaries reflecting those structures are generally more robust than arbitrary logical decomposition.
+
+### Validate in integrated context
+
+A micro-block can close at high frequency yet fail after replication/integration because routing distance and placement pressure change. Validate the relevant full design.
+
+## 15. Claim language
+
+Match wording to evidence strength.
+
+Direct evidence:
+
+```text
+"The routed path contains..."
+"Quartus accepted four duplicates..."
+"The generated SV dependency is..."
+```
+
+Supported interpretation:
+
+```text
+"This functional cone is strongly supported by the fitted anchors and generated RTL."
+```
 
 Inference:
-- placement/locality explanation not directly proven.
 
-Ruled out:
-- hypotheses contradicted by fitter duplication, fanout, or path data.
-
-Experiment:
-- one exact change and one validation plan.
+```text
+"This placement explanation is likely..."
+"This may be the next recurrence exposed after the change..."
 ```
+
+Avoid claims such as:
+
+```text
+"This synthesized iNNNN node is definitely Scala expression X."
+```
+
+unless direct cross-probe or generated-netlist evidence proves it.
