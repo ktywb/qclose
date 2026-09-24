@@ -13,8 +13,8 @@ existing evidence
   -> fitted dependency
   -> generated RTL / source mapping
   -> one attributable experiment
-  -> structural validation
-  -> final timing
+  -> functional + structural validation
+  -> integration/retention
 ```
 
 
@@ -29,7 +29,7 @@ Before running qclose commands, resolve its repository root once:
 
 1. **Reuse existing evidence first.** Prefer an existing `logs/timing-analysis/<run>/` collection. Do not recompile only to reproduce evidence already available.
 
-2. **Read health before timing-driven design advice.** If health is blocked by constraint or data-quality findings, do not propose structural RTL/QSF/SDC/placement changes until the finding is resolved or explicitly waived. Missing stage-specific evidence is not a clean result.
+2. **Read health before timing-driven design advice.** If health is blocked by constraint or data-quality findings, resolve or explicitly waive those findings first. Changes that directly correct the reported constraint or data-quality problem are allowed; defer unrelated RTL/QSF/placement timing optimizations until health is no longer blocked. Missing stage-specific evidence is not a clean result.
 
 3. **Check comparability before attributing a regression or improvement.** Confirm source fingerprint, snapshot, requested clock, corner, period, sampling scope, and relevant Quartus/project settings. Different source fingerprints prove different source states, not which source change caused the delta.
 
@@ -190,15 +190,17 @@ Validation
 
 ## Stop conditions
 
-Do not propose a timing-driven RTL/QSF/SDC/placement change yet when:
+Do not propose an unrelated timing-driven RTL/QSF/placement optimization yet when:
 
-- health is blocked;
+- health is blocked by an unresolved constraint or data-quality finding;
 - the suspected root cause has only weak hierarchy correlation;
 - required evidence exists in another snapshot but has not been inspected;
 - the previous experiment has not been structurally validated;
 - Quartus already performs the proposed optimization and no evidence shows manual control is needed.
 
 Collect or inspect the missing evidence instead.
+
+Changes whose purpose is to resolve the blocking constraint or data-quality finding are exempt from this stop condition.
 
 ## References
 
