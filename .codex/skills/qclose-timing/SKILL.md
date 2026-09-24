@@ -17,6 +17,14 @@ existing evidence
   -> final timing
 ```
 
+
+Before running qclose commands, resolve its repository root once:
+
+   ```sh
+   QCLOSE=scripts/qclose   # project integration
+   # QCLOSE=.              # inside qclose
+   ```
+
 ## Procedure
 
 1. **Reuse existing evidence first.** Prefer an existing `logs/timing-analysis/<run>/` collection. Do not recompile only to reproduce evidence already available.
@@ -37,12 +45,7 @@ existing evidence
 
 5. **Analyze a path family, not only rank #1.** Use repeated launch/capture families, hierarchy, operator family, issue anchors, and delay character. A single worst path can be seed-specific.
 
-6. **Inspect the fitted path.** Resolve the qclose root once:
-
-   ```sh
-   QCLOSE=scripts/qclose   # project integration
-   # QCLOSE=.              # inside qclose
-   ```
+6. **Inspect the fitted path.** 
 
    Start with logical/technology detail:
 
@@ -121,18 +124,21 @@ validation snapshot:
 success criteria:
 ```
 
-Success normally requires both:
+Evaluate two separate outcomes:
 
 ```text
-structural: intended path family/topology changed as predicted
-sign-off:   final timing is neutral or better in an appropriate controlled comparison
+structural validation:
+  intended path family/topology changed as predicted
+
+retention/sign-off:
+  final timing is neutral or better in an appropriate controlled comparison A structurally validated experiment can still be rejected for final integration if the replacement bottleneck or placement effect makes overall timing worse.
 ```
 
 ## Output contract
 
 ```text
 Baseline
-  run / snapshot / clock / WNS / Fmax
+  run / snapshot / clock / WNS / Fmax when available
 
 Critical family
   launch -> functional cone -> capture
