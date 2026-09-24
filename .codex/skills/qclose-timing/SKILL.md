@@ -70,7 +70,7 @@ Before running qclose commands, resolve its repository root once:
 
 8. **Classify the measured bottleneck and choose one experiment.** Read only the relevant sections of `references/workflow.md` for the observed problem: delay character, automatic duplication, control recurrence, look-ahead, routing/locality, experiment interpretation, multi-seed, DSE, or floorplanning.
 
-9. **Validate topology before headline Fmax.** Verify that the intended path family disappeared, shortened, or changed topology as predicted; identify the replacement family; compare delay character; then interpret final WNS/Fmax.
+9. **Validate function and structure before headline Fmax.** First verify the required functional tests/properties and functional invariant. Then verify that the intended path family disappeared, shortened, reduced its measured cost, or changed topology as predicted; identify the replacement family and compare delay character. Only then interpret final WNS/Fmax.
 
 ## Common qclose commands
 
@@ -190,9 +190,9 @@ Validation
 
 ## Stop conditions
 
-Do not propose an unrelated timing-driven RTL/QSF/placement optimization yet when:
+Do not propose a new timing-driven RTL/QSF/placement optimization yet when:
 
-- health is blocked by an unresolved constraint or data-quality finding;
+- health is blocked by an unresolved constraint or data-quality finding, unless the proposed change directly resolves that blocking finding;
 - the suspected root cause has only weak hierarchy correlation;
 - required evidence exists in another snapshot but has not been inspected;
 - the previous experiment has not been structurally validated;
@@ -200,7 +200,7 @@ Do not propose an unrelated timing-driven RTL/QSF/placement optimization yet whe
 
 Collect or inspect the missing evidence instead.
 
-Changes whose purpose is to resolve the blocking constraint or data-quality finding are exempt from this stop condition.
+The health exception applies only to changes whose purpose is to resolve the blocking constraint or data-quality finding.
 
 ## References
 
