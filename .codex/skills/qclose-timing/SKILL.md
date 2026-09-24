@@ -131,16 +131,23 @@ functional validation:
   required tests/properties pass and the functional invariant is preserved
 
 structural validation:
-  intended path family/topology changed as predicted
+  the target path family changed in the predicted measurable way
 
-retention/sign-off:
-  final timing is neutral or better in an appropriate controlled comparison
+integration/retention:
+  final controlled timing is acceptable for the project's timing objective
 ```
+
+For structural validation, the expected change may be disappearance,
+shortening, reduced logic/routing cost, or a topology change, depending on the
+experiment hypothesis.
 
 Treat these outcomes independently. A structurally validated experiment may
 still be rejected for integration if it fails functional validation or if a
 replacement bottleneck, placement effect, or seed-stable timing regression
-makes overall timing worse.
+makes the implementation unattractive.
+
+Reserve "timing sign-off" for the final condition in which all required timing
+constraints/corners/modes for the project are satisfied.
 
 ## Output contract
 
